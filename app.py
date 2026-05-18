@@ -76,7 +76,7 @@ def main():
 
     with st.expander("📂 Carregar base de dados", expanded=True):
         arquivos_upados = st.file_uploader(
-            "Arraste os ficheiros de resultados (CSV ou XLSX). 1ª Coluna: Referência | 2ª Coluna: Previsão.",
+            "Arraste os arquivos de resultados (CSV ou XLSX). <p style="color: red;">IMPORTANTE</p>: 1ª Coluna (A): Referência | 2ª Coluna (B): Previsão.",
             type=["csv", "xlsx", "xls"],
             accept_multiple_files=True
         )
@@ -126,7 +126,7 @@ def main():
 
             # Apresentação Gráfica Expandida
             st.markdown("---")
-            st.markdown("### 📈 Análise Gráfica Exploratória Avançada")
+            st.markdown("### 📈 Análise Gráfica")
             st.info("Acesse as abas abaixo para visualizar o diagnóstico completo de cada modelo ensaiado.")
             
             abas_arquivos = st.tabs(list(dataframes_processados.keys()))
@@ -148,7 +148,7 @@ def main():
                         st.plotly_chart(plotar_qq_residuos(df_grafico, nome_arq), use_container_width=True)
 
     else:
-        st.info("👈 Aguardando a inserção de dados.")
+        st.info("Aguardando a inserção de dados.")
 
 if __name__ == "__main__":
     main()
