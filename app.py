@@ -21,7 +21,7 @@ from src.visualization import (
 def main():
     st.set_page_config(page_title="StructStat", page_icon="🏗️", layout="wide")
 
-    st.title("🏗️ StructStat: Avaliação de Modelos")
+    st.title("StructStat: Avaliação de Modelos")
     st.markdown("Dashboard interativo para validação estatística de modelos de engenharia de estruturas.")
 
     # 2. Barra Lateral Dinâmica (Inputs e Configurações de Unidades)
@@ -53,12 +53,7 @@ def main():
         )
         
         st.markdown("---")
-        st.subheader("Guia Científico")
-        with st.expander("Bland-Altman & Q-Q Plot"):
-            st.markdown("""
-            * **Bland-Altman:** Identifica heterocedasticidade e vieses proporcionais (se o erro cresce com a carga).
-            * **Q-Q Plot:** Avalia normalidade dos resíduos. Pontos fora da diagonal vermelha invalidam o pressuposto de distribuição normal nos erros (Ang & Tang, 2007).
-            """)
+
 
         # --- Rodapé Discreto ---
         # Empurra o conteúdo para baixo usando quebras de linha em HTML
@@ -68,8 +63,8 @@ def main():
             """
             <div style='text-align: center; color: gray; font-size: 0.85em;'>
                 <b>StructStat v1.0</b><br>
-                Desenvolvido por: Pedro<br>
-                <i>Doutorando em Engenharia de Estruturas</i>
+                Desenvolvido por: Pedro Jardim<br>
+                <i>Maio/2026</i>
             </div>
             """, 
             unsafe_allow_html=True
