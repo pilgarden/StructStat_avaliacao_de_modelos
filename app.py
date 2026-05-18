@@ -76,7 +76,7 @@ def main():
 
     with st.expander("📂 Carregar base de dados", expanded=True):
         arquivos_upados = st.file_uploader(
-            "Arraste os arquivos de resultados (CSV ou XLSX). <p style="color: red;">IMPORTANTE</p>: 1ª Coluna (A): Referência | 2ª Coluna (B): Previsão.",
+            "Arraste os arquivos de resultados (CSV ou XLSX). st.warning(IMPORTANTE): 1ª Coluna (A): Referência | 2ª Coluna (B): Previsão.",
             type=["csv", "xlsx", "xls"],
             accept_multiple_files=True
         )
