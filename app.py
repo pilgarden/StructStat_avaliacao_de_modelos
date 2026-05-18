@@ -76,7 +76,7 @@ def main():
 
     with st.expander("📂 Carregar base de dados", expanded=True):
         arquivos_upados = st.file_uploader(
-            f"Arraste os arquivos de resultados (CSV ou XLSX). {st.warning('IMPORTANTE')}: 1ª Coluna (A): Referência | 2ª Coluna (B): Previsão.",
+            "Arraste os arquivos de resultados (CSV ou XLSX).",
             type=["csv", "xlsx", "xls"],
             accept_multiple_files=True
         )
@@ -149,6 +149,7 @@ def main():
 
     else:
         st.info("Aguardando a inserção de dados.")
+        st.warning('Organização dos dados: 1ª Coluna (A): Referência | 2ª Coluna (B): Previsão.')
 
 if __name__ == "__main__":
     main()
