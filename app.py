@@ -62,9 +62,9 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; color: gray; font-size: 0.85em;'>
-                <b>StructStat v1.0</b><br>
+                <b>StructStat: módulo de avaliação de modelos</b><br>
                 Desenvolvido por: Pedro Jardim<br>
-                <i>Maio/2026</i>
+                <i>v1.0 - Maio/2026</i>
             </div>
             """, 
             unsafe_allow_html=True
