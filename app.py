@@ -21,7 +21,7 @@ from src.visualization import (
 def main():
     st.set_page_config(page_title="StructStat", page_icon="🏗️", layout="wide")
 
-    st.title("StructStat: Avaliação de Modelos")
+    st.title("🏗️ StructStat: Avaliação de Modelos")
     st.markdown("Dashboard interativo para validação estatística de modelos de engenharia de estruturas.")
 
     # 2. Barra Lateral Dinâmica (Inputs e Configurações de Unidades)
@@ -53,6 +53,17 @@ def main():
         )
         
         st.markdown("---")
+
+        # RESTAURAÇÃO DO BLOCO CIENTÍFICO APAGADO
+        st.subheader("Guia Científico")
+        with st.expander("Métricas de Validação"):
+            st.markdown("""
+            * **Overfitting ($R^2 - R^2_{ajust}$):** Mede a penalização pela complexidade do modelo. Valores altos indicam que o modelo matemático possui excesso de parâmetros para a quantidade de dados experimentais disponíveis.
+            * **Estatística F:** Razão entre a variância explicada pelo modelo e a variância residual. Um valor elevado rejeita a hipótese de que o modelo é inútil.
+            * **Valor-p:** Probabilidade do resultado da Estatística F ter ocorrido ao acaso. Na engenharia, aceita-se $p < 0.05$ como estatisticamente significativo.
+            """)
+        with st.expander("Bland-Altman & Q-Q Plot"):
+            st.markdown("* **Bland-Altman:** Identifica vieses proporcionais.\n* **Q-Q Plot:** Avalia normalidade dos resíduos (Ang & Tang, 2007).")
 
 
         # --- Rodapé Discreto ---
@@ -162,5 +173,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
