@@ -64,7 +64,7 @@ def main():
     fator_conv = calcular_fator_conversao(grandeza_selecionada, unidade_entrada, unidade_saida)
     sigla_unidade = unidade_saida.split(' ')[0] # Extrai apenas 'kN', 'mm', 'MPa', etc.
 
-    with st.expander("Carregar base de dados")
+    with st.expander("Carregar base de dados"):
         arquivos_upados = st.file_uploader(
             "Arraste os ficheiros de resultados (CSV ou XLSX). 1ª Coluna: Referência | 2ª Coluna: Previsão.",
             type=["csv", "xlsx", "xls"],
