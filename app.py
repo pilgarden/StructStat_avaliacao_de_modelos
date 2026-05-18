@@ -64,15 +64,16 @@ def main():
     fator_conv = calcular_fator_conversao(grandeza_selecionada, unidade_entrada, unidade_saida)
     sigla_unidade = unidade_saida.split(' ')[0] # Extrai apenas 'kN', 'mm', 'MPa', etc.
 
-    arquivos_upados = st.file_uploader(
-        "Arraste os ficheiros de resultados (CSV ou XLSX). 1ª Coluna: Referência | 2ª Coluna: Previsão.",
-        type=["csv", "xlsx", "xls"],
-        accept_multiple_files=True
-    )
-
-    if arquivos_upados:
-        resultados_consolidados = []
-        dataframes_processados = {} 
+    with st.expander("Carregar base de dados")
+        arquivos_upados = st.file_uploader(
+            "Arraste os ficheiros de resultados (CSV ou XLSX). 1ª Coluna: Referência | 2ª Coluna: Previsão.",
+            type=["csv", "xlsx", "xls"],
+            accept_multiple_files=True
+        )
+    
+        if arquivos_upados:
+            resultados_consolidados = []
+            dataframes_processados = {} 
         
         st.markdown("### 📊 Consolidação Estatística")
         
