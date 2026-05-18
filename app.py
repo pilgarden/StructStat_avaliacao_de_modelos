@@ -71,9 +71,9 @@ def main():
             accept_multiple_files=True
         )
     
-        if arquivos_upados:
-            resultados_consolidados = []
-            dataframes_processados = {} 
+    if arquivos_upados:
+        resultados_consolidados = []
+        dataframes_processados = {} 
         
         st.markdown("### 📊 Consolidação Estatística")
         
