@@ -1,4 +1,4 @@
-﻿"""
+"""
 Módulo Principal (app.py)
 StructStat: Avaliação de modelos estruturais.
 """
@@ -60,17 +60,32 @@ def main():
             * **Q-Q Plot:** Avalia normalidade dos resíduos. Pontos fora da diagonal vermelha invalidam o pressuposto de distribuição normal nos erros (Ang & Tang, 2007).
             """)
 
+        # --- Rodapé Discreto ---
+        # Empurra o conteúdo para baixo usando quebras de linha em HTML
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        
+        st.markdown(
+            """
+            <div style='text-align: center; color: gray; font-size: 0.85em;'>
+                <b>StructStat v1.0</b><br>
+                Desenvolvido por: Pedro<br>
+                <i>Doutorando em Engenharia de Estruturas</i>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+
     # 3. Área Principal
     fator_conv = calcular_fator_conversao(grandeza_selecionada, unidade_entrada, unidade_saida)
     sigla_unidade = unidade_saida.split(' ')[0] # Extrai apenas 'kN', 'mm', 'MPa', etc.
 
-    with st.expander("Carregar base de dados"):
+    with st.expander("📂 Carregar base de dados", expanded=True):
         arquivos_upados = st.file_uploader(
             "Arraste os ficheiros de resultados (CSV ou XLSX). 1ª Coluna: Referência | 2ª Coluna: Previsão.",
             type=["csv", "xlsx", "xls"],
             accept_multiple_files=True
         )
-    
+
     if arquivos_upados:
         resultados_consolidados = []
         dataframes_processados = {} 
