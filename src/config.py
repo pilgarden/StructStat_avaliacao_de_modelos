@@ -1,10 +1,10 @@
-﻿"""
+"""
 Módulo de Configuração (config.py)
-Centraliza constantes de unidades estruturais (Força, Deslocamento, Momento, Tensão).
+StructStat: Avaliação de Modelos e Análise Exploratória.
+Centraliza constantes de unidades estruturais, dicionários e UI.
 """
 
 # Dicionários segmentados por grandeza física para Engenharia de Estruturas.
-# Todas as conversões são baseadas na unidade base do SI internamente.
 GRANDEZAS_UNIDADES = {
     'Força': {
         'N (Newton)': 1.0, 
@@ -22,7 +22,7 @@ GRANDEZAS_UNIDADES = {
     'Momento Fletor / Torsor': {
         'N.m (Newton-metro)': 1.0, 
         'kN.m (Quilonewton-metro)': 1e3,
-        'kN.cm (Quilonewton-centímetro)': 10.0, # 1 kN * 0.01 m
+        'kN.cm (Quilonewton-centímetro)': 10.0,
         'tf.m (Tonelada-força-metro)': 9806.65
     },
     'Tensão / Pressão': {
@@ -36,9 +36,17 @@ GRANDEZAS_UNIDADES = {
 def calcular_fator_conversao(grandeza: str, unidade_origem: str, unidade_destino: str) -> float:
     """Calcula o multiplicador escalar entre duas unidades da mesma grandeza."""
     dicionario_grandeza = GRANDEZAS_UNIDADES.get(grandeza, {})
-    
-    # Busca o fator ou assume 1.0 em caso de erro
     fator_origem = dicionario_grandeza.get(unidade_origem, 1.0)
     fator_destino = dicionario_grandeza.get(unidade_destino, 1.0)
-    
     return float(fator_origem / fator_destino)
+
+# Configurações UI/Gráficos
+SIDEBAR_FOOTER_HTML = """
+<div style='text-align: center; color: gray; font-size: 0.85em; margin-top: 50px;'>
+    <b>StructStat: Plataforma Unificada de Avaliação</b><br>
+    Desenvolvido por: Pedro Jardim<br>
+    <i>v2.0 - Integração Total</i>
+</div>
+"""
+MM_TO_PX = 3.779527559
+SCIENTIFIC_PALETTES = {"Viridis": "viridis", "Plasma": "plasma", "Inferno": "inferno", "Cividis": "cividis"}
