@@ -1,44 +1,38 @@
-"""
-Módulo de Diagnóstico Avançado de Modelos (model_diagnostics.py)
-StructStat: Análise de Homocedasticidade, Multicolinearidade e Sensibilidade.
-"""
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-from SALib.analyze import sobol
 from SALib.sample import saltelli
+from SALib.analyze import sobol
 
-def analisar_homocedasticidade(model_results):
+def check_multicollinearity(df_X):
     """
-    Realiza o Teste de Breusch-Pagan para verificar a constância da variância dos resíduos.
+    Calcula o Fator de Inflação da Variância (VIF).
+    VIF > 10 indica multicolinearidade severa.
     """
-    # Hipótese Nula (H0): Homocedasticidade presente.
-    # p-value < 0.05 sugere Heterocedasticidade.
-    from statsmodels.stats.diagnostic import het_breuschpagan
-    resid = model_results.resid
-    exog = sm.add_constant(model_results.model.exog)
-    lm, p_value, f, f_p = het_breuschpagan(resid, exog)
-    return {"p_value": p_value, "lm_stat": lm, "homocedastico": p_value > 0.05}
-
-def calcular_vif(df_exog):
-    """
-    Calcula o Variance Inflation Factor (VIF) para detectar multicolinearidade.
-    VIF > 10 indica multicolinearidade severa que deve ser corrigida.
-    """
+    X = sm.add_constant(df_X)
     vif_data = pd.DataFrame()
-    vif_data["Variável"] = df_exog.columns
-    vif_data["VIF"] = [variance_inflation_factor(df_exog.values, i) for i in range(df_exog.shape[1])]
+    vif_data["Feature"] = X.columns
+    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
     return vif_data
 
-def executar_sensibilidade_sobol(problema, func, N=1024):
+def check_homoscedasticity(y_true, y_pred):
     """
-    Sensibilidade Global (Sobol).
-    problema: Dicionário da SALib (nomes, bounds, num_vars).
-    func: Função do modelo que recebe um array de amostras.
+    Testes de Homocedasticidade (Resíduos vs Previsto).
+    Retorna o p-valor do teste de Breusch-Pagan.
     """
-    param_values = saltelli.sample(problema, N)
-    Y = np.array([func(val) for val in param_values])
-    Si = sobol.analyze(problema, Y)
+    residuals = y_true - y_pred
+    # Breusch-Pagan: H0 é homocedasticidade
+    name = ['Lagrange multiplier statistic', 'p-value', 'f-value', 'f p-value']
+    test = sm.stats.diagnostic.het_breuschpagan(residuals, sm.add_constant(y_pred))
+    return dict(zip(name, test))
+
+def run_sobol_sensitivity(model_func, problem):
+    """
+    Análise de Sensibilidade Global Sobol.
+    problem: dict com 'num_vars', 'names', 'bounds'
+    """
+    param_values = saltelli.sample(problem, 1024)
+    Y = np.array([model_func(p) for p in param_values])
+    Si = sobol.analyze(problem, Y, print_to_console=False)
     return Si
