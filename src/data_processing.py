@@ -1,91 +1,65 @@
-﻿# --------------------------------------------------------------
-# src/data_processing.py
-# --------------------------------------------------------------
 """
 Módulo de Processamento de Dados (data_processing.py)
-StructStat: Avaliação de modelos estruturais.
-
-Responsável pela extração (leitura de CSV/XLSX), sanitização (remoção de strings 
-residuais e NaNs) e transformação (aplicação de fatores de escala) dos dados brutos.
+Extração, limpeza e filtragem agnóstica à interface.
 """
 
 import pandas as pd
 import numpy as np
-import io
 import os
 
-def ler_e_limpar_dados(arquivo_obj, nome_arquivo: str, fator_conversao: float = 1.0) -> pd.DataFrame:
-    """
-    Processa um ficheiro de resultados experimentais/numéricos, garantindo
-    um DataFrame limpo, estritamente numérico e dimensionado corretamente.
-    
-    Parâmetros:
-    -----------
-    arquivo_obj : str ou file-like object
-        Caminho local do ficheiro ou objeto em memória (Streamlit UploadedFile).
-    nome_arquivo : str
-        Nome do ficheiro (necessário para inferir a extensão .csv ou .xlsx).
-    fator_conversao : float, opcional (default=1.0)
-        Multiplicador escalar para conversão de unidades (ex: converter N para kN).
-        
-    Retorno:
-    --------
-    pd.DataFrame
-        DataFrame contendo duas colunas limpas ['Referencia', 'Previsto'].
-        
-    Exceções:
-    ---------
-    ValueError / RuntimeError: Se o ficheiro estiver corrompido ou sem dados numéricos.
-    """
-    _, extensao = os.path.splitext(nome_arquivo.lower())
-    df = None
-    
+def carregar_dados(ficheiro_obj, nome_ficheiro: str) -> pd.DataFrame:
+    """Carrega dataset genérico para Análise Exploratória."""
+    _, extensao = os.path.splitext(nome_ficheiro.lower())
     try:
         if extensao in ['.xlsx', '.xls']:
-            df = pd.read_excel(arquivo_obj)
+            df = pd.read_excel(ficheiro_obj)
         else:
-            # Tratamento de ficheiros CSV
-            # Muitos sistemas de aquisição em PT/BR usam ';' como separador e ',' como decimal.
-            # Se a leitura falhar, assume-se o padrão internacional da literatura ('.' e ',').
-            
-            # Se for um objeto em memória (Streamlit), garante que o cursor está no início
-            if hasattr(arquivo_obj, 'seek'):
-                arquivo_obj.seek(0)
-                
+            if hasattr(ficheiro_obj, 'seek'): ficheiro_obj.seek(0)
             try:
-                df = pd.read_csv(arquivo_obj, sep=';', decimal=',', engine='python')
-            except pd.errors.ParserError:
-                if hasattr(arquivo_obj, 'seek'):
-                    arquivo_obj.seek(0)
-                df = pd.read_csv(arquivo_obj, sep=',', decimal='.', engine='python')
-        
-        if df is None or df.empty:
-            raise ValueError("O ficheiro encontra-se vazio ou tem um formato ilegível.")
-
-        # Isolamento vetorial: Assume-se que a 1ª coluna é Referência (x) e a 2ª é Previsão (y)
-        df_limpo = df.iloc[:, :2].copy()
-        
-        if df_limpo.shape[1] < 2:
-            raise ValueError("O ficheiro deve conter pelo menos duas colunas.")
-            
-        df_limpo.columns = ['Referencia', 'Previsto']
-        
-        # Sanitização: Força a conversão para Float. 
-        # Caracteres de texto (ex: cabeçalhos duplos, unidades na célula) tornam-se NaN.
-        df_limpo['Referencia'] = pd.to_numeric(df_limpo['Referencia'], errors='coerce')
-        df_limpo['Previsto'] = pd.to_numeric(df_limpo['Previsto'], errors='coerce')
-        
-        # Eliminação rigorosa de linhas incompletas (Graus de liberdade perdidos)
-        df_limpo = df_limpo.dropna()
-        
-        if len(df_limpo) == 0:
-            raise ValueError("Após a sanitização, não restaram tensores numéricos válidos.")
-            
-        # Transformação Tensorial: Aplicação linear do fator de conversão (N -> kN, etc.)
-        df_limpo['Referencia'] = df_limpo['Referencia'] * fator_conversao
-        df_limpo['Previsto'] = df_limpo['Previsto'] * fator_conversao
-        
-        return df_limpo
-        
+                df = pd.read_csv(ficheiro_obj, sep=';', decimal=',', engine='python')
+                if len(df.columns) < 2: raise ValueError
+            except:
+                if hasattr(ficheiro_obj, 'seek'): ficheiro_obj.seek(0)
+                df = pd.read_csv(ficheiro_obj, sep=',', decimal='.', engine='python')
+        return df.dropna(how='all')
     except Exception as e:
-        raise RuntimeError(f"Falha na extração de '{nome_arquivo}': {str(e)}")
+        raise RuntimeError(f"Erro ao ler '{nome_ficheiro}': {str(e)}")
+
+def ler_e_limpar_dados(arquivo_obj, nome_arquivo: str, fator_conversao: float = 1.0) -> pd.DataFrame:
+    """Carrega dados estritos (2 colunas) para Avaliação de Modelos."""
+    df = carregar_dados(arquivo_obj, nome_arquivo)
+    
+    # Isolamento vetorial: Assume-se que a 1ª coluna é Referência (x) e a 2ª é Previsão (y)
+    df_limpo = df.iloc[:, :2].copy()
+    if df_limpo.shape[1] < 2:
+        raise ValueError("O ficheiro deve conter pelo menos duas colunas (Real e Predito).")
+        
+    df_limpo.columns = ['Referencia', 'Previsto']
+    df_limpo['Referencia'] = pd.to_numeric(df_limpo['Referencia'], errors='coerce')
+    df_limpo['Previsto'] = pd.to_numeric(df_limpo['Previsto'], errors='coerce')
+    df_limpo = df_limpo.dropna()
+    
+    if len(df_limpo) == 0:
+        raise ValueError("Após a sanitização, não restaram tensores numéricos válidos.")
+        
+    df_limpo['Referencia'] = df_limpo['Referencia'] * fator_conversao
+    df_limpo['Previsto'] = df_limpo['Previsto'] * fator_conversao
+    return df_limpo
+
+def aplicar_filtro_dinamico(df: pd.DataFrame, coluna: str, regra: str, valor: any) -> pd.DataFrame:
+    """Filtra subconjuntos para a aba exploratória."""
+    if coluna not in df.columns: return df
+    try:
+        if regra == "Valores Exatos" and isinstance(valor, list):
+            return df[df[coluna].isin(valor)]
+        elif regra == "Menor ou igual (<=)":
+            return df[df[coluna] <= float(valor)]
+        elif regra == "Maior ou igual (>=)":
+            return df[df[coluna] >= float(valor)]
+        elif regra == "Começa com (Prefixo)":
+            return df[df[coluna].astype(str).str.startswith(str(valor), na=False)]
+        elif regra == "Contém (Texto)":
+            return df[df[coluna].astype(str).str.contains(str(valor), na=False, case=False)]
+        return df
+    except Exception as e:
+        raise ValueError(f"Erro ao aplicar o filtro: {str(e)}")
