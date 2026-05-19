@@ -33,16 +33,22 @@ def check_homoscedasticity(y_true, y_pred):
     }
 
 @st.cache_data(show_spinner=False)
-def run_sobol_sensitivity(model_func, problem, num_samples=1024):
+def run_sobol_sensitivity(_model_func, problem, num_samples=1024):
     """
     Análise de Sensibilidade Global Sobol com cache para evitar recálculos.
+    O prefixo '_' em '_model_func' indica ao Streamlit para ignorar o hash desta função.
     """
     try:
+        # Gera a matriz de amostras via Saltelli
         param_values = saltelli.sample(problem, num_samples)
+        
         # Executa a função do modelo para cada combinação de parâmetros
-        Y = np.array([model_func(p) for p in param_values])
+        Y = np.array([_model_func(p) for p in param_values])
+        
+        # Calcula os índices de Sobol
         Si = sobol.analyze(problem, Y, print_to_console=False)
         return Si
     except Exception as e:
+        import streamlit as st
         st.error(f"Erro na análise de Sobol: {e}")
         return None
