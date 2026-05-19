@@ -177,6 +177,39 @@ def interface_analise_exploratoria():
             c_m2.dataframe(pd.DataFrame(testar_homocedasticidade(df_at, fator, metrica)).T.style.format(precision=4))
             c_m2.json(comparar_medias(df_at, fator, metrica))
 
+import streamlit as st
+import pandas as pd
+from src.model_diagnostics import analisar_homocedasticidade, calcular_vif
+
+def app():
+    st.title("📊 Diagnóstico Avançado de Modelos")
+    
+    # Upload do modelo (ex: via pickle ou fit manual)
+    st.subheader("Configuração da Regressão")
+    # ... código para seleção de variáveis ...
+
+    tab1, tab2, tab3 = st.tabs(["Homocedasticidade", "Multicolinearidade (VIF)", "Sensibilidade (Sobol)"])
+
+    with tab1:
+        st.markdown("### Teste de Breusch-Pagan")
+        with st.expander("Fundamentação Teórica"):
+            st.write("""
+            A homocedasticidade é a premissa de que a variância dos resíduos é constante. 
+            Se os resíduos exibirem padrões de dispersão (formato de cone), o modelo 
+            está enviesado. O teste de Breusch-Pagan verifica esta constância.
+            """)
+        # Chamada da função e exibição de gráfico
+        
+    with tab2:
+        st.markdown("### Fator de Inflação da Variância (VIF)")
+        with st.expander("Interpretando VIF"):
+            st.write("Valores de VIF acima de 5-10 sugerem que a variável é linearmente dependente das outras, dificultando a isolação do efeito individual.")
+        # Exibição de tabela com df_vif.style.background_gradient(cmap='Reds')
+
+    with tab3:
+        st.markdown("### Análise de Sensibilidade Global")
+        st.info("A análise de Sobol decompõe a variância da saída entre os inputs, identificando quais variáveis dominam a incerteza do modelo.")
+
 # ==============================================================================
 # ORQUESTRADOR PRINCIPAL
 # ==============================================================================
