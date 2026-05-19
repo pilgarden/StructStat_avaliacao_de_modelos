@@ -181,7 +181,7 @@ import streamlit as st
 import pandas as pd
 from src.model_diagnostics import analisar_homocedasticidade, calcular_vif
 
-def app():
+def diagnostico_avancado():
     st.title("📊 Diagnóstico Avançado de Modelos")
     
     # Upload do modelo (ex: via pickle ou fit manual)
@@ -215,10 +215,11 @@ def app():
 # ==============================================================================
 def main():
     st.sidebar.title("🏗️ StructStat")
-    modo = st.sidebar.radio("Selecione o Módulo de Operação:", ["🎯 Avaliação de Modelos Preditivos", "🔍 Análise Exploratória Geral"])
+    modo = st.sidebar.radio("Selecione o Módulo de Operação:", ["🎯 Avaliação de Modelos Preditivos", "🔍 Análise Exploratória Geral", "📊 Diagnóstico Avançado de Modelos"])
     st.sidebar.markdown("---")
     
     if "Avaliação" in modo: interface_avaliacao_modelos()
+    elif "Diagnóstico" in modo: diagnostico_avancado()
     else: interface_analise_exploratoria()
     
     st.sidebar.markdown(SIDEBAR_FOOTER_HTML, unsafe_allow_html=True)
