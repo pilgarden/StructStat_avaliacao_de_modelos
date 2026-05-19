@@ -14,7 +14,32 @@ from src.visualization import (
     plotar_histograma, plotar_qq, plotar_matriz_calor, plotar_dispersao
 )
 from src.model_diagnostics import analisar_homocedasticidade, calcular_vif
+import streamlit as st
+import pandas as pd
+from src.data_processing import carregar_dados # Certifique-se de que sua função de carga está aqui
 
+# Configuração da Barra Lateral (O Hub de Dados)
+st.sidebar.title("🏗️ StructStat Hub")
+st.sidebar.markdown("---")
+
+uploaded_file = st.sidebar.file_uploader("Upload de Dados (Excel/CSV)", type=["csv", "xlsx"])
+
+if uploaded_file is not None:
+    # Carregamento e cache dos dados
+    if 'df_global' not in st.session_state:
+        try:
+            df = carregar_dados(uploaded_file) # Sua função customizada
+            st.session_state['df_global'] = df
+            st.sidebar.success("Dados carregados com sucesso!")
+        except Exception as e:
+            st.sidebar.error(f"Erro ao carregar: {e}")
+
+# Verificação de persistência
+if 'df_global' in st.session_state:
+    st.sidebar.info(f"Dataset ativo: {uploaded_file.name}")
+    if st.sidebar.button("Limpar Dados"):
+        del st.session_state['df_global']
+        st.rerun()
 # Configuração da Página
 st.set_page_config(page_title="StructStat Unificado", page_icon="🏗️", layout="wide")
 
