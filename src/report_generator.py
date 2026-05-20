@@ -1,47 +1,40 @@
-import streamlit as st
-from weasyprint import HTML
-import matplotlib.pyplot as plt
-import base64
-import io
+from fpdf import FPDF
+import pandas as pd
+import os
 
-def generate_pdf_report(df, alvo, previsto, preditores):
-    # 1. Configurar figuras estáticas (Matplotlib) para o PDF
-    fig, ax = plt.subplots(figsize=(6, 4))
-    ax.scatter(df[alvo], df[previsto], alpha=0.6)
-    ax.plot([df[alvo].min(), df[alvo].max()], [df[alvo].min(), df[alvo].max()], 'r--')
-    ax.set_title("Linearidade (Ref vs Prev)")
-    
-    img_buf = io.BytesIO()
-    fig.savefig(img_buf, format='png')
-    img_base64 = base64.b64encode(img_buf.getvalue()).decode('utf-8')
-    plt.close(fig)
+class PDFGenerator(FPDF):
+    def header(self):
+        self.set_font("Arial", "B", 12)
+        self.cell(0, 10, "StructStat - Relatório de Análise Científica", border=False, ln=True, align="C")
+        self.ln(10)
 
-    # 2. Estrutura HTML do Relatório
-    html_content = f"""
-    <html>
-    <style>
-        @page {{ size: A4; margin: 20mm; }}
-        body {{ font-family: 'Times New Roman', serif; line-height: 1.6; color: #333; }}
-        h1 {{ color: #2c3e50; border-bottom: 2px solid #2c3e50; }}
-        h2 {{ color: #34495e; margin-top: 30px; }}
-        .metric-box {{ background: #f8f9fa; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }}
-    </style>
-    <body>
-        <h1>Relatório de Diagnóstico StructStat</h1>
-        <p>Data de Análise: {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</p>
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.cell(0, 10, f"Página {self.page_no()}", align="C")
+
+    def add_table(self, df: pd.DataFrame, title: str):
+        self.set_font("Arial", "B", 10)
+        self.cell(0, 10, title, ln=True)
+        self.set_font("Arial", size=8)
         
-        <h2>1. Visão Geral</h2>
-        <p>Análise realizada entre <strong>{alvo}</strong> e <strong>{previsto}</strong>.</p>
+        # Cabeçalhos
+        col_width = 190 / len(df.columns)
+        for col in df.columns:
+            self.cell(col_width, 10, str(col), border=1, align="C")
+        self.ln()
         
-        <h2>2. Aderência Visual</h2>
-        <img src="data:image/png;base64,{img_base64}" width="100%">
-        
-        <h2>3. Tabela de Métricas (VIF)</h2>
-        <p>Aqui seriam inseridos os dados das tabelas processadas...</p>
-    </body>
-    </html>
-    """
-    
-    # 3. Conversão para PDF
-    pdf_file = HTML(string=html_content).write_pdf()
-    return pdf_file
+        # Dados
+        for _, row in df.iterrows():
+            for item in row:
+                self.cell(col_width, 10, str(item), border=1, align="C")
+            self.ln()
+        self.ln(10)
+
+    def add_plot(self, image_path: str, title: str):
+        self.set_font("Arial", "B", 10)
+        self.cell(0, 10, title, ln=True)
+        # O fpdf2 lida bem com caminhos locais
+        if os.path.exists(image_path):
+            self.image(image_path, w=150)
+            self.ln(10)
