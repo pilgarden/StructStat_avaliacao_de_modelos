@@ -52,3 +52,25 @@ def run_sobol_sensitivity(_model_func, problem, num_samples=1024):
         import streamlit as st
         st.error(f"Erro na análise de Sobol: {e}")
         return None
+def detect_outliers_grubbs(data):
+    """
+    Executa o teste de Grubbs para o outlier mais extremo (univariado).
+    Retorna o p-valor e o índice do valor discrepante.
+    """
+    n = len(data)
+    if n <= 2: return None, None
+    
+    mean = np.mean(data)
+    std = np.std(data, ddof=1)
+    abs_diff = np.abs(data - mean)
+    max_diff = np.max(abs_diff)
+    max_idx = np.argmax(abs_diff)
+    
+    g_stat = max_diff / std
+    
+    # Valor crítico (aproximação para Grubbs)
+    t_dist = stats.t.ppf(1 - 0.05 / (2 * n), n - 2)
+    g_crit = ((n - 1) / np.sqrt(n)) * np.sqrt(t_dist**2 / (n - 2 + t_dist**2))
+    
+    is_outlier = g_stat > g_crit
+    return g_stat, is_outlier, max_idx
