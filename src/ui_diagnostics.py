@@ -7,12 +7,11 @@ import statsmodels.api as sm
 from scipy import stats
 from sklearn.metrics import r2_score
 from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity, detect_outliers_grubbs
-
 def render_diagnostics():
     st.title("📊 Diagnóstico Avançado de Modelos")
     
     if 'df_global' not in st.session_state:
-        st.warning("⚠️ Por favor, carregue um arquivo de dados na barra lateral (Hub) para ativar este módulo.")
+        st.warning("⚠️ Carregue um arquivo de dados na barra lateral (Hub) para ativar este módulo.")
         return
         
     df = st.session_state['df_global']
@@ -32,15 +31,16 @@ def render_diagnostics():
 
     st.markdown("---")
     
-    # 2. Execução dos Separadores de Diagnóstico
+    # 2. Execução dos Separadores
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Aderência Visual", 
-        "Análise de Outliers", # <--- NOVA ABA
+        "Análise de Outliers", 
         "Homocedasticidade e Resíduos", 
         "Multicolinearidade (VIF)", 
         "Sensibilidade (Sobol)"
     ])
     
+    # --- ABA 1: ADERÊNCIA VISUAL ---
     with tab1:
         st.subheader("Análise Gráfica de Aderência e Distribuição de Erros")
         try:
@@ -57,88 +57,64 @@ def render_diagnostics():
             medias_ba = (y_true + y_pred) / 2
             
             c1, c2, c3 = st.columns(3)
-            
             with c1:
                 fig_lin = go.Figure()
                 fig_lin.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Dados', marker=dict(color='#1f77b4', opacity=0.7)))
                 min_val = min(y_true.min(), y_pred.min())
                 max_val = max(y_true.max(), y_pred.max())
                 fig_lin.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="red", dash="dash"))
-                fig_lin.update_layout(title=f"Linearidade<br><sup>R² = {r2:.3f}</sup>", xaxis_title="Referência ($y$)", yaxis_title="Previsto ($\hat{y}$)", height=400, margin=dict(l=20, r=20, t=60, b=20))
+                fig_lin.update_layout(title=f"Linearidade (R² = {r2:.3f})", xaxis_title="Referência", yaxis_title="Previsto", height=400)
                 st.plotly_chart(fig_lin, use_container_width=True)
-                csv_lin = df_clean[[alvo, previsto]].rename(columns={alvo: 'Referenca_Y', previsto: 'Previsto_Y_Hat'}).to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Baixar Dados de Linearidade", csv_lin, "dados_linearidade.csv", "text/csv", key="dl_lin_tab1")
-                
             with c2:
                 fig_ba = go.Figure()
                 fig_ba.add_trace(go.Scatter(x=medias_ba, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
                 fig_ba.add_hline(y=mean_diff, line_dash="solid", line_color="blue", annotation_text=f"Média: {mean_diff:.2f}")
                 fig_ba.add_hline(y=limit_up, line_dash="dash", line_color="red", annotation_text=f"+1.96 SD: {limit_up:.2f}")
-                fig_ba.add_hline(y=limit_down, line_dash="dash", line_color="red", annotation_text=f"-1.96 SD: {limit_down:.2f}", annotation_position="bottom right")
-                fig_ba.update_layout(title="Bland-Altman: Erro vs Média", xaxis_title="Média (Ref + Prev)/2", yaxis_title="Erro (Ref - Prev)", height=400, margin=dict(l=20, r=20, t=60, b=20))
+                fig_ba.add_hline(y=limit_down, line_dash="dash", line_color="red", annotation_text=f"-1.96 SD: {limit_down:.2f}")
+                fig_ba.update_layout(title="Bland-Altman", xaxis_title="Média", yaxis_title="Erro", height=400)
                 st.plotly_chart(fig_ba, use_container_width=True)
-                df_ba_export = pd.DataFrame({'Eixo_X_Medias': medias_ba, 'Eixo_Y_Diferencas': residuos})
-                csv_ba = df_ba_export.to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Baixar Dados Bland-Altman", csv_ba, "dados_bland_altman.csv", "text/csv", key="dl_ba_tab1")
-                
             with c3:
-                fig_hist = px.histogram(x=residuos, nbins=20, title="Distribuição de Resíduos", labels={'x': 'Erro', 'count': 'Frequência'}, color_discrete_sequence=['#2ca02c'])
-                fig_hist.update_layout(xaxis_title="Erro (Ref - Prev)", yaxis_title="Frequência", height=400, margin=dict(l=20, r=20, t=60, b=20))
+                fig_hist = px.histogram(x=residuos, nbins=20, title="Distribuição de Resíduos", color_discrete_sequence=['#2ca02c'])
+                fig_hist.update_layout(height=400)
                 st.plotly_chart(fig_hist, use_container_width=True)
-                df_hist_export = pd.DataFrame({'Residuos_Erros': residuos})
-                csv_hist = df_hist_export.to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Baixar Dados Histograma", csv_hist, "dados_histograma.csv", "text/csv", key="dl_hist_tab1")
-                
         except Exception as e:
-            st.error(f"Erro ao gerar gráficos de aderência: {e}")
+            st.error(f"Erro gráficos: {e}")
 
+    # --- ABA 2: OUTLIERS ---
     with tab2:
-            st.subheader("Análise Detalhada de Outliers")
-            try:
-                df_clean = df[[alvo, previsto]].dropna().copy()
-                residuos = df_clean[alvo] - df_clean[previsto]
+        st.subheader("Análise Detalhada de Outliers")
+        try:
+            df_clean = df[[alvo, previsto]].dropna().copy()
+            residuos = df_clean[alvo] - df_clean[previsto]
+            
+            # Z-Score e Outliers
+            z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
+            outliers_z = z_scores > 3
+            pct_outliers = (outliers_z.sum() / len(residuos)) * 100
+            
+            # Grubbs
+            g_stat, is_outlier, max_idx = detect_outliers_grubbs(residuos.values)
+            
+            col_res, col_tech = st.columns(2)
+            with col_res:
+                st.metric("Percentagem de Outliers ($|Z| > 3$)", f"{pct_outliers:.2f}%")
+                fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, title="Identificação de Outliers ($|Z| > 3$)")
+                st.plotly_chart(fig_out, use_container_width=True)
                 
-                # Cálculo de estatísticas
-                z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
-                outliers_z = z_scores > 3
-                pct_outliers = (outliers_z.sum() / len(residuos)) * 100
+                df_export = df_clean[outliers_z]
+                st.download_button("⬇️ Baixar Outliers", df_export.to_csv().encode('utf-8'), "outliers.csv", "text/csv")
                 
-                # Teste de Grubbs
-                g_stat, is_outlier, max_idx = detect_outliers_grubbs(residuos)
-                
-                col_res, col_tech = st.columns(2)
-                
-                with col_res:
-                    st.metric("Percentagem de Outliers ($|Z| > 3$)", f"{pct_outliers:.2f}%")
-                    st.write(f"Dados fora dos limites: **{outliers_z.sum()}** de {len(residuos)} amostras.")
+            with col_tech:
+                st.markdown("#### 📝 Avaliação Técnica")
+                if pct_outliers > 5:
+                    st.error("❌ Percentagem de outliers elevada (> 5%).")
+                else:
+                    st.success("✅ Percentagem de outliers sob controlo (< 5%).")
                     
-                    # Visualização dos outliers
-                    df_plot = df_clean.copy()
-                    df_plot['Tipo'] = np.where(outliers_z, 'Outlier', 'Normal')
-                    fig_out = px.scatter(df_plot, x=previsto, y=residuos, color='Tipo', title="Identificação de Outliers ($|Z| > 3$)")
-                    st.plotly_chart(fig_out, use_container_width=True)
-                    
-                    # Download
-                    df_export = df_plot[df_plot['Tipo'] == 'Outlier']
-                    csv_out = df_export.to_csv(index=False).encode('utf-8')
-                    st.download_button("⬇️ Baixar lista de Outliers", csv_out, "outliers_detected.csv", "text/csv")
-                    
-                with col_tech:
-                    st.markdown("#### 📝 Avaliação Técnica")
-                    if pct_outliers > 5:
-                        st.error("❌ **Percentagem de outliers elevada (> 5%).** O modelo pode estar subestimado por ruídos extremos.")
-                    else:
-                        st.success("✅ **Outliers sob controlo (< 5%).** A amostra é robusta.")
-                    
-                    st.markdown("#### 💡 Recomendação Metodológica")
-                    if len(residuos) < 50:
-                        st.info("Para amostras pequenas, o teste de **Grubbs** é o mais indicado para isolar erros grosseiros de medição. O seu valor crítico atual é baseado na distribuição t-Student.")
-                    else:
-                        st.info("Para amostras grandes, o método do **Z-Score** ou **IQR** (Tukey) é mais estável. Outliers em larga escala devem ser analisados quanto à sua origem (erro de leitura vs. resposta física real).")
-    
-            except Exception as e:
-                st.error(f"Erro na análise de outliers: {e}")
-    
+                if is_outlier:
+                    st.warning(f"O teste de Grubbs detetou um outlier extremo no índice {max_idx}.")
+        except Exception as e:
+            st.error(f"Erro na análise de outliers: {e}")
     with tab3:
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
