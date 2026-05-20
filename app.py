@@ -90,16 +90,7 @@ if df is not None:
                 st.sidebar.success("Relatório gerado.")
             except Exception as e:
                 st.sidebar.error(f"Erro ao gerar PDF: {e}")
-    st.markdown(
-        """
-        <div style='text-align: center; color: gray; font-size: 0.85em;'>
-            <b>StructStat: módulo de avaliação de modelos</b><br>
-            Desenvolvido por: Pedro Jardim<br>
-            <i>v1.0 - Maio/2026</i>
-        </div>
-        """, 
-        unsafe_allow_html=True
-        )
+
     if st.session_state.get("pdf_report_bytes"):
         st.sidebar.download_button(
             label="Baixar Relatório (PDF)",
@@ -119,4 +110,16 @@ else:
     st.markdown(
         "Carregue um ficheiro **CSV** ou **Excel** na barra lateral para iniciar "
         "o diagnóstico estatístico do modelo."
+    )
+
+
+st.markdown(
+    """
+    <div style='text-align: center; color: gray; font-size: 0.85em;'>
+        <b>StructStat: módulo de avaliação de modelos</b><br>
+        Desenvolvido por: Pedro Jardim<br>
+        <i>v1.0 - Maio/2026</i>
+    </div>
+    """, 
+    unsafe_allow_html=True
     )
