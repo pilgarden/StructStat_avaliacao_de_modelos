@@ -6,7 +6,14 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from scipy import stats
 from sklearn.metrics import r2_score
-from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity, detect_outliers_grubbs
+
+from src.model_diagnostics import (
+    check_multicollinearity, 
+    check_homoscedasticity, 
+    run_sobol_sensitivity, 
+    detect_outliers_grubbs
+)
+
 def render_diagnostics():
     st.title("📊 Diagnóstico Avançado de Modelos")
     
@@ -16,14 +23,14 @@ def render_diagnostics():
         
     df = st.session_state['df_global']
     
-    # 1. Configuração de Variáveis (UI)
-    st.markdown("### ⚙️ Seleção de Variáveis para Análise")
-    col1, col2 = st.columns(2)
-    with col1:
-        alvo = st.selectbox("Variável Real (Referência $y$):", df.columns, key="diag_alvo")
-        previsto = st.selectbox("Variável Prevista (Modelo $\hat{y}$):", df.columns, key="diag_prev")
-    with col2:
-        preditores = st.multiselect("Variáveis Independentes (Inputs $X$):", df.columns, key="diag_preds")
+    # 1. Configuração de Variáveis em Box Retrátil
+    with st.expander("⚙️ Configurações de Variáveis para Análise", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            alvo = st.selectbox("Variável Real (Referência $y$):", df.columns, key="diag_alvo")
+            previsto = st.selectbox("Variável Prevista (Modelo $\hat{y}$):", df.columns, key="diag_prev")
+        with col2:
+            preditores = st.multiselect("Variáveis Independentes (Inputs $X$):", df.columns, key="diag_preds")
         
     if not preditores or alvo == previsto:
         st.info("👈 Selecione as variáveis independentes físicas e garanta que os eixos de Referência e Previsão são distintos.")
@@ -42,36 +49,25 @@ def render_diagnostics():
     
     # --- ABA 1: ADERÊNCIA VISUAL ---
     with tab1:
-        st.subheader("Análise Gráfica de Aderência e Distribuição de Erros")
+        st.subheader("Análise Gráfica de Aderência")
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
-            y_true = df_clean[alvo]
-            y_pred = df_clean[previsto]
+            y_true, y_pred = df_clean[alvo], df_clean[previsto]
             residuos = y_true - y_pred
             
             r2 = r2_score(y_true, y_pred)
-            mean_diff = np.mean(residuos)
-            std_diff = np.std(residuos)
-            limit_up = mean_diff + 1.96 * std_diff
-            limit_down = mean_diff - 1.96 * std_diff
-            medias_ba = (y_true + y_pred) / 2
-            
             c1, c2, c3 = st.columns(3)
             with c1:
                 fig_lin = go.Figure()
                 fig_lin.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Dados', marker=dict(color='#1f77b4', opacity=0.7)))
-                min_val = min(y_true.min(), y_pred.min())
-                max_val = max(y_true.max(), y_pred.max())
-                fig_lin.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="red", dash="dash"))
-                fig_lin.update_layout(title=f"Linearidade (R² = {r2:.3f})", xaxis_title="Referência", yaxis_title="Previsto", height=400)
+                min_v, max_v = min(y_true.min(), y_pred.min()), max(y_true.max(), y_pred.max())
+                fig_lin.add_shape(type="line", x0=min_v, y0=min_v, x1=max_v, y1=max_v, line=dict(color="red", dash="dash"))
+                fig_lin.update_layout(title=f"Linearidade (R² = {r2:.3f})", height=400)
                 st.plotly_chart(fig_lin, use_container_width=True)
             with c2:
                 fig_ba = go.Figure()
-                fig_ba.add_trace(go.Scatter(x=medias_ba, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
-                fig_ba.add_hline(y=mean_diff, line_dash="solid", line_color="blue", annotation_text=f"Média: {mean_diff:.2f}")
-                fig_ba.add_hline(y=limit_up, line_dash="dash", line_color="red", annotation_text=f"+1.96 SD: {limit_up:.2f}")
-                fig_ba.add_hline(y=limit_down, line_dash="dash", line_color="red", annotation_text=f"-1.96 SD: {limit_down:.2f}")
-                fig_ba.update_layout(title="Bland-Altman", xaxis_title="Média", yaxis_title="Erro", height=400)
+                fig_ba.add_trace(go.Scatter(x=(y_true+y_pred)/2, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
+                fig_ba.update_layout(title="Bland-Altman", height=400)
                 st.plotly_chart(fig_ba, use_container_width=True)
             with c3:
                 fig_hist = px.histogram(x=residuos, nbins=20, title="Distribuição de Resíduos", color_discrete_sequence=['#2ca02c'])
@@ -80,41 +76,47 @@ def render_diagnostics():
         except Exception as e:
             st.error(f"Erro gráficos: {e}")
 
-    # --- ABA 2: OUTLIERS ---
+    # --- ABA 2: ANÁLISE DE OUTLIERS ---
     with tab2:
         st.subheader("Análise Detalhada de Outliers")
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
             residuos = df_clean[alvo] - df_clean[previsto]
             
-            # Z-Score e Outliers
+            # Cálculos
             z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
             outliers_z = z_scores > 3
-            pct_outliers = (outliers_z.sum() / len(residuos)) * 100
+            pct = (outliers_z.sum() / len(residuos)) * 100
+            _, is_out, idx = detect_outliers_grubbs(residuos.values)
             
-            # Grubbs
-            g_stat, is_outlier, max_idx = detect_outliers_grubbs(residuos.values)
+            # Layout: Gráfico na esquerda (2/3), Métricas na direita (1/3)
+            c_left, c_right = st.columns([2, 1])
             
-            col_res, col_tech = st.columns(2)
-            with col_res:
-                st.metric("Percentagem de Outliers ($|Z| > 3$)", f"{pct_outliers:.2f}%")
-                fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, title="Identificação de Outliers ($|Z| > 3$)")
+            with c_left:
+                fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, 
+                                     labels={'x': 'Previsto', 'y': 'Resíduos', 'color': 'É Outlier?'},
+                                     title="Dispersão: Identificação de Outliers ($|Z| > 3$)")
+                fig_out.add_hline(y=0, line_dash="dash", line_color="gray")
                 st.plotly_chart(fig_out, use_container_width=True)
                 
-                df_export = df_clean[outliers_z]
-                st.download_button("⬇️ Baixar Outliers", df_export.to_csv().encode('utf-8'), "outliers.csv", "text/csv")
-                
-            with col_tech:
-                st.markdown("#### 📝 Avaliação Técnica")
-                if pct_outliers > 5:
-                    st.error("❌ Percentagem de outliers elevada (> 5%).")
+            with c_right:
+                st.metric("Percentagem de Outliers", f"{pct:.2f}%")
+                if pct > 5:
+                    st.error("❌ Percentagem de outliers elevada.")
                 else:
-                    st.success("✅ Percentagem de outliers sob controlo (< 5%).")
-                    
+                    st.success("✅ Percentagem sob controlo.")
+                
+                st.markdown("---")
                 if is_outlier:
-                    st.warning(f"O teste de Grubbs detetou um outlier extremo no índice {max_idx}.")
+                    st.warning(f"Teste de Grubbs detetou outlier extremo no índice {idx}.")
+                
+                st.download_button("⬇️ Baixar Dados de Outliers", df_clean[outliers_z].to_csv().encode('utf-8'), "outliers.csv", "text/csv")
+
         except Exception as e:
             st.error(f"Erro na análise de outliers: {e}")
+
+
+    
     with tab3:
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
