@@ -76,7 +76,6 @@ def render_diagnostics():
                 )
                 st.plotly_chart(fig_lin, use_container_width=True)
                 
-                # REQUISITO EXIGIDO: Botão de Download para Dados de Linearidade
                 csv_lin = df_clean[[alvo, previsto]].rename(columns={alvo: 'Referenca_Y', previsto: 'Previsto_Y_Hat'}).to_csv(index=False).encode('utf-8')
                 st.download_button("⬇️ Baixar Dados de Linearidade", csv_lin, "dados_linearidade.csv", "text/csv", key="dl_lin_tab1")
                 
@@ -96,7 +95,6 @@ def render_diagnostics():
                 )
                 st.plotly_chart(fig_ba, use_container_width=True)
                 
-                # REQUISITO EXIGIDO: Botão de Download para Dados do Bland-Altman
                 df_ba_export = pd.DataFrame({'Eixo_X_Medias': medias_ba, 'Eixo_Y_Diferencas': residuos})
                 csv_ba = df_ba_export.to_csv(index=False).encode('utf-8')
                 st.download_button("⬇️ Baixar Dados Bland-Altman", csv_ba, "dados_bland_altman.csv", "text/csv", key="dl_ba_tab1")
@@ -112,7 +110,6 @@ def render_diagnostics():
                 fig_hist.update_layout(xaxis_title="Erro (Ref - Prev)", yaxis_title="Frequência", height=400, margin=dict(l=20, r=20, t=60, b=20))
                 st.plotly_chart(fig_hist, use_container_width=True)
                 
-                # REQUISITO EXIGIDO: Botão de Download para os Resíduos do Histograma
                 df_hist_export = pd.DataFrame({'Residuos_Erros': residuos})
                 csv_hist = df_hist_export.to_csv(index=False).encode('utf-8')
                 st.download_button("⬇️ Baixar Dados Histograma", csv_hist, "dados_histograma.csv", "text/csv", key="dl_hist_tab1")
@@ -129,19 +126,60 @@ def render_diagnostics():
             df_clean = df[[alvo, previsto]].dropna().copy()
             df_clean['Resíduos'] = df_clean[alvo] - df_clean[previsto]
             
+            # Cálculo dos Resíduos Padronizados (Z-Score)
+            std_resid = df_clean['Resíduos'].std(ddof=1)
+            mean_resid = df_clean['Resíduos'].mean()
+            df_clean['Resíduos_Padronizados'] = (df_clean['Resíduos'] - mean_resid) / std_resid
+            
             col_grafico, col_texto = st.columns(2)
+            
             with col_grafico:
+                # 1. Gráfico de Dispersão de Resíduos
                 fig_res = px.scatter(
                     df_clean, x=previsto, y='Resíduos',
                     labels={previsto: 'Valores Previstos ($\hat{y}$)', 'Resíduos': 'Resíduos ($y - \hat{y}$)'},
                     title="Dispersão de Resíduos vs. Valores Previstos"
                 )
                 fig_res.add_hline(y=0, line_dash="dash", line_color="red")
+                fig_res.update_layout(height=350, margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_res, use_container_width=True)
                 
-                df_graph_data = df_clean[[previsto, 'Resíduos']].rename(columns={previsto: 'Valores_Previstos'})
+                # 2. NOVO: Histograma de Densidade com Curva Normal Sobreposta
+                fig_norm = go.Figure()
+                
+                # Histograma (Densidade de probabilidade)
+                fig_norm.add_trace(go.Histogram(
+                    x=df_clean['Resíduos_Padronizados'],
+                    histnorm='probability density',
+                    name='Resíduos (Densidade)',
+                    marker_color='#9467bd',
+                    opacity=0.7,
+                    nbinsx=20
+                ))
+                
+                # Curva Normal Teórica
+                x_range = np.linspace(df_clean['Resíduos_Padronizados'].min() - 1, df_clean['Resíduos_Padronizados'].max() + 1, 100)
+                y_norm = stats.norm.pdf(x_range, 0, 1) # Média 0, Desvio 1 (Padronizado)
+                
+                fig_norm.add_trace(go.Scatter(
+                    x=x_range, y=y_norm,
+                    mode='lines',
+                    name='Normal Teórica',
+                    line=dict(color='red', width=2, dash='dash')
+                ))
+                
+                fig_norm.update_layout(
+                    title="Densidade dos Resíduos Padronizados vs. Curva Normal",
+                    xaxis_title="Resíduos Padronizados ($Z$)",
+                    yaxis_title="Densidade",
+                    height=350, margin=dict(l=20, r=20, t=40, b=20)
+                )
+                st.plotly_chart(fig_norm, use_container_width=True)
+                
+                # Botão de download atualizado para incluir os Resíduos Padronizados
+                df_graph_data = df_clean[[previsto, 'Resíduos', 'Resíduos_Padronizados']].rename(columns={previsto: 'Valores_Previstos'})
                 csv_graph = df_graph_data.to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Baixar Dados do Gráfico", data=csv_graph, file_name="dados_residuos.csv", mime="text/csv", key="dl_graph_res")
+                st.download_button("⬇️ Baixar Dados dos Gráficos de Resíduos", data=csv_graph, file_name="dados_residuos.csv", mime="text/csv", key="dl_graph_res")
                 
             with col_texto:
                 results_bp = check_homoscedasticity(df_clean[alvo], df_clean[previsto])
@@ -155,14 +193,15 @@ def render_diagnostics():
                 
                 st.markdown("#### 📝 Parecer Técnico de Avaliação")
                 if p_val_bp < 0.05:
-                    st.error("❌ **Heterocedasticidade Detetada:** A variância dos erros não é constante.")
+                    st.error("❌ **Heterocedasticidade Detetada:** O teste de Breusch-Pagan rejeitou a hipótese nula ($p < 0.05$). A variância dos erros não é constante, apresentando uma dispersão irregular.")
+                    st.caption("**Recomendação:** Sugere-se reportar erros-padrão robustos (ex: HC3) ou aplicar uma transformação matemática (WLS).")
                 else:
-                    st.success("✅ **Homocedasticidade Confirmada:** Os resíduos distribuem-se de forma homogénea.")
+                    st.success("✅ **Homocedasticidade Confirmada:** O teste de Breusch-Pagan não rejeitou a hipótese nula ($p \ge 0.05$). Os resíduos distribuem-se de forma homogénea em toda a gama.")
                 
                 if p_val_sw < 0.05:
-                    st.warning("⚠️ **Resíduos Não-Normais:** O teste detetou desvios em relação à curva gaussiana ideal.")
+                    st.warning("⚠️ **Resíduos Não-Normais:** O teste de Shapiro-Wilk detetou desvios ($p < 0.05$). Observe o gráfico de densidade à esquerda: as barras azuis afastam-se significativamente da curva normal teórica (linha vermelha tracejada).")
                 else:
-                    st.success("✅ **Normalidade Confirmada:** Os erros seguem uma distribuição gaussiana ideal.")
+                    st.success("✅ **Normalidade Confirmada:** Os erros seguem uma distribuição gaussiana ideal, acompanhando adequadamente a curva normal teórica no gráfico de densidade.")
         except Exception as e:
             st.error(f"Erro na análise de resíduos: {e}")
             
