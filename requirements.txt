@@ -8,4 +8,5 @@ openpyxl
 matplotlib
 statsmodels
 SALib
-weasyprint
+fpdf2
+
