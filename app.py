@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 
 # Import das lógicas visuais e de dados da sua pasta src/
-from src.data_processing import carregar_dados 
+from src.data_processing import carregar_dados
 from src.ui_diagnostics import render_diagnostics
 
 # Configuração da página
