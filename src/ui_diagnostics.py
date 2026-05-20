@@ -96,12 +96,23 @@ def render_diagnostics():
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
+            
+            # Cálculos de Incerteza e Resíduos
             df_clean['Resíduos'] = df_clean[alvo] - df_clean[previsto]
             
-            # Padronização e Tamanho da Amostra
+            # Variável Aleatória de Incerteza do Modelo (Theta = Real / Previsto)
+            # Evita divisão por zero retornando NaN
+            df_clean['Theta_Incerteza'] = np.where(df_clean[previsto] != 0, df_clean[alvo] / df_clean[previsto], np.nan)
+            
             N_amostras = len(df_clean)
-            std_resid = df_clean['Resíduos'].std(ddof=1)
             mean_resid = df_clean['Resíduos'].mean()
+            std_resid = df_clean['Resíduos'].std(ddof=1)
+            
+            # Momentos de Theta para Confiabilidade
+            mean_theta = df_clean['Theta_Incerteza'].mean()
+            std_theta = df_clean['Theta_Incerteza'].std(ddof=1)
+            cov_theta = std_theta / mean_theta if mean_theta != 0 else 0
+            
             df_clean['Resíduos_Padronizados'] = (df_clean['Resíduos'] - mean_resid) / std_resid
             
             col_grafico, col_texto = st.columns(2)
@@ -122,7 +133,7 @@ def render_diagnostics():
                 fig_norm.update_layout(title="Densidade vs. Curva Normal", xaxis_title="Resíduos Padronizados ($Z$)", yaxis_title="Densidade", height=320, margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_norm, use_container_width=True)
                 
-                # 3. NOVO: Q-Q Plot
+                # 3. Q-Q Plot
                 (osm, osr), (slope, intercept, r) = stats.probplot(df_clean['Resíduos_Padronizados'], dist="norm")
                 fig_qq = go.Figure()
                 fig_qq.add_trace(go.Scatter(x=osm, y=osr, mode='markers', name='Quantis observados', marker=dict(color='#8c564b', opacity=0.7)))
@@ -130,50 +141,49 @@ def render_diagnostics():
                 fig_qq.update_layout(title=f"Q-Q Plot (R² de aderência = {r**2:.3f})", xaxis_title="Quantis Teóricos (Normal)", yaxis_title="Quantis Observados ($Z$)", height=320, margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_qq, use_container_width=True)
                 
-                df_graph_data = df_clean[[previsto, 'Resíduos', 'Resíduos_Padronizados']].rename(columns={previsto: 'Valores_Previstos'})
+                # Download atualizado com a variável Theta
+                df_graph_data = df_clean[[previsto, 'Resíduos', 'Resíduos_Padronizados', 'Theta_Incerteza']].rename(columns={previsto: 'Valores_Previstos'})
                 csv_graph = df_graph_data.to_csv(index=False).encode('utf-8')
-                st.download_button("⬇️ Baixar Dados dos Resíduos", data=csv_graph, file_name="dados_residuos.csv", mime="text/csv", key="dl_graph_res")
+                st.download_button("⬇️ Baixar Dados e Fator de Incerteza (Theta)", data=csv_graph, file_name="dados_residuos_incerteza.csv", mime="text/csv", key="dl_graph_res")
                 
             with col_texto:
-                # Cálculos
+                # P-valores dos testes
                 results_bp = check_homoscedasticity(df_clean[alvo], df_clean[previsto])
                 p_val_bp = results_bp.get('p-valor (LM)', results_bp.get('p-value', 0))
-                
                 stat_sw, p_val_sw = stats.shapiro(df_clean['Resíduos'])
-                
-                res_ad = stats.anderson(df_clean['Resíduos'], dist='norm')
-                ad_stat = res_ad.statistic
-                ad_crit_5 = res_ad.critical_values[2] # Valor crítico para 5% de significância
-                is_normal_ad = ad_stat < ad_crit_5 # H0 é que é normal
+                ad_stat, p_val_ad = sm.stats.diagnostic.normal_ad(df_clean['Resíduos'])
                 
                 st.markdown("#### 🔬 Métricas e Testes Formais")
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns(3)
                 c1.metric("P-Valor (Breusch-Pagan)", f"{p_val_bp:.4f}")
                 c2.metric("P-Valor (Shapiro-Wilk)", f"{p_val_sw:.4f}")
+                c3.metric("P-Valor (Anderson-Darling)", f"{p_val_ad:.4f}")
                 
-                st.markdown(f"**Estatística Anderson-Darling:** {ad_stat:.4f} *(Valor Crítico 5%: {ad_crit_5:.4f})*")
+                st.markdown("#### 📏 Estatísticas e Incerteza Epistémica do Modelo ($\\theta$)")
+                cm1, cm2, cm3, cm4 = st.columns(4)
+                cm1.metric("Média dos Resíduos", f"{mean_resid:.4e}")
+                cm2.metric("Desvio Padrão (Resíduos)", f"{std_resid:.4f}")
+                cm3.metric("Média Fator $\\theta$ (Real/Prev)", f"{mean_theta:.4f}")
+                cm4.metric("CoV do Fator $\\theta$ (%)", f"{cov_theta*100:.2f}%")
                 
-                st.markdown("#### 💡 Recomendação Metodológica (Normalidade)")
+                st.markdown("#### 💡 Recomendação Metodológica")
                 if N_amostras < 50:
-                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Pequena). Recomenda-se confiar primariamente no teste de **Shapiro-Wilk**, que possui maior poder estatístico para $N < 50$. O Q-Q Plot deve ser inspecionado rigorosamente.")
+                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Pequena). Recomenda-se confiar primariamente no teste de **Shapiro-Wilk**, que possui maior poder estatístico para $N < 50$. A variável aleatória de incerteza do modelo $\\theta$ apresentou uma dispersão (CoV) de {cov_theta*100:.2f}%.")
                 else:
-                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Robusta). Recomenda-se focar no teste de **Anderson-Darling**, pois este penaliza severamente os desvios nas caudas da distribuição, algo vital para simulações de Confiabilidade Estrutural.")
+                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Robusta). Recomenda-se focar no teste de **Anderson-Darling**, pois este penaliza severamente os desvios nas caudas da distribuição. Utilize a média de $\\theta$ ({mean_theta:.4f}) e o seu CoV ({cov_theta*100:.2f}%) para as simulações de Confiabilidade Estrutural.")
 
                 st.markdown("#### 📝 Parecer Técnico de Avaliação")
-                
-                # Parecer Homocedasticidade
                 if p_val_bp < 0.05:
                     st.error("❌ **Heterocedasticidade Detetada:** A variância dos erros apresenta dispersão irregular.")
                 else:
                     st.success("✅ **Homocedasticidade Confirmada:** Os resíduos distribuem-se de forma homogénea (variância constante).")
                 
-                # Parecer Normalidade Integrado (SW + AD + QQ)
-                if is_normal_ad and p_val_sw >= 0.05:
-                    st.success("✅ **Normalidade Confirmada:** Ambos os testes (Shapiro-Wilk e Anderson-Darling) confirmam a aderência à distribuição normal. Visualmente, no **Q-Q Plot**, os pontos alinham-se de forma consistente sobre a diagonal tracejada vermelha, atestando a qualidade do modelo.")
-                elif not is_normal_ad and p_val_sw < 0.05:
-                    st.error("❌ **Resíduos Não-Normais:** Forte desvio da normalidade detectado por ambos os testes. No **Q-Q Plot**, observe o descolamento significativo dos pontos castanhos em relação à linha tracejada (especialmente nas caudas esquerda/inferior ou direita/superior).")
+                if p_val_ad >= 0.05 and p_val_sw >= 0.05:
+                    st.success("✅ **Normalidade Confirmada:** Ambos os testes confirmam a aderência à distribuição normal ($p \ge 0.05$). No **Q-Q Plot**, os pontos alinham-se consistentemente.")
+                elif p_val_ad < 0.05 and p_val_sw < 0.05:
+                    st.error("❌ **Resíduos Não-Normais:** Forte desvio da normalidade detectado por ambos os testes ($p < 0.05$). Observe o descolamento no **Q-Q Plot**.")
                 else:
-                    st.warning(f"⚠️ **Normalidade Divergente:** Os testes apresentam resultados conflitantes. Siga a recomendação acima baseada no tamanho $N={N_amostras}$. Verifique o **Q-Q Plot** à esquerda para confirmar se o desvio provém de ruído em todo o corpo da curva ou apenas de *outliers* extremos nas caudas.")
+                    st.warning(f"⚠️ **Normalidade Divergente:** Os testes apresentam resultados conflitantes. Siga a recomendação acima baseada no tamanho $N={N_amostras}$. Verifique o **Q-Q Plot**.")
                     
         except Exception as e:
             st.error(f"Erro na análise de resíduos: {e}")
