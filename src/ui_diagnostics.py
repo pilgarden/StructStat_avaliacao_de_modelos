@@ -6,12 +6,7 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from scipy import stats
 from sklearn.metrics import r2_score
-from src.model_diagnostics import (
-    check_multicollinearity, 
-    check_homoscedasticity, 
-    run_sobol_sensitivity, 
-    detect_outliers_grubbs
-)
+from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity, detect_outliers_grubbs
 
 def render_diagnostics():
     st.title("📊 Diagnóstico Avançado de Modelos")
