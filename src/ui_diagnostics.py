@@ -1,3 +1,5 @@
+Acho que esse é o mais crítico:
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -6,106 +8,277 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from scipy import stats
 from sklearn.metrics import r2_score
-
-# Importações dos seus módulos locais
 from src.model_diagnostics import (
-    check_multicollinearity, 
-    check_homoscedasticity, 
-    run_sobol_sensitivity, 
-    detect_outliers_grubbs
+    check_multicollinearity, 
+    check_homoscedasticity, 
+    run_sobol_sensitivity, 
+    detect_outliers_grubbs
 )
-from src.visualization import _aplicar_estilo_tufte
-
-def _render_error(msg):
-    st.error(f"Erro no processamento: {msg}")
 
 def render_diagnostics():
-    st.title("📊 Diagnóstico Avançado de Modelos")
-    
-    # Validação inicial de dados
-    if 'df_global' not in st.session_state or st.session_state['df_global'] is None:
-        st.warning("⚠️ Carregue um arquivo de dados no Hub (barra lateral) para iniciar.")
-        return
-    
-    df = st.session_state['df_global']
-    
-    # --- Configurações de Variáveis ---
-    with st.expander("⚙️ Configurações de Variáveis", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            alvo = st.selectbox("Variável Real ($y$):", df.columns, key="diag_alvo")
-            previsto = st.selectbox("Variável Prevista ($\hat{y}$):", df.columns, key="diag_prev")
-        with col2:
-            preditores = st.multiselect("Variáveis Independentes ($X$):", df.columns, key="diag_preds")
-        
-    if not preditores or alvo == previsto:
-        st.info("👈 Selecione as variáveis para desbloquear as análises.")
-        return
+    st.title("📊 Diagnóstico Avançado de Modelos")
+    if 'df_global' not in st.session_state:
+        st.warning("⚠️ Carregue um arquivo de dados na barra lateral (Hub).")
+        return
+    df = st.session_state['df_global']
+    
+    with st.expander("⚙️ Configurações de Variáveis"):
+        col1, col2 = st.columns(2)
+        with col1:
+            alvo = st.selectbox("Variável Real ($y$):", df.columns, key="diag_alvo")
+            previsto = st.selectbox("Variável Prevista ($\hat{y}$):", df.columns, key="diag_prev")
+        with col2:
+            preditores = st.multiselect("Variáveis Independentes ($X$):", df.columns, key="diag_preds")
+        
+    if not preditores or alvo == previsto:
+        st.info("👈 Selecione as variáveis.")
+        return
 
-    # Tabs de Diagnóstico
-    tabs = st.tabs(["Aderência Visual", "Análise de Outliers", "Resíduos", "VIF", "Sobol"])
-    
-    # --- ABA 1: ADERÊNCIA VISUAL ---
-    with tabs[0]:
-        st.subheader("Análise Gráfica de Aderência")
-        try:
-            df_c = df[[alvo, previsto]].dropna().copy()
-            r2 = r2_score(df_c[alvo], df_c[previsto])
-            
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                fig = px.scatter(df_c, x=alvo, y=previsto, title=f"Linearidade (R² = {r2:.3f})")
-                st.plotly_chart(_aplicar_estilo_tufte(fig, {'width_mm': 100, 'height_mm': 80}), use_container_width=True)
-            with c2:
-                # Bland-Altman
-                fig_ba = go.Figure()
-                fig_ba.add_trace(go.Scatter(x=(df_c[alvo]+df_c[previsto])/2, y=df_c[previsto]-df_c[alvo], mode='markers'))
-                fig_ba.update_layout(title="Bland-Altman")
-                st.plotly_chart(_aplicar_estilo_tufte(fig_ba, {'width_mm': 100, 'height_mm': 80}), use_container_width=True)
-            with c3:
-                fig_hist = px.histogram(x=df_c[previsto]-df_c[alvo], title="Resíduos")
-                st.plotly_chart(_aplicar_estilo_tufte(fig_hist, {'width_mm': 100, 'height_mm': 80}), use_container_width=True)
-        except Exception as e:
-            _render_error(e)
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Aderência Visual", "Análise de Outliers", "Resíduos", "VIF", "Sobol"])
+    
+    # --- ABA 1: ADERÊNCIA VISUAL ---
+    with tab1:
+        st.subheader("Análise Gráfica de Aderência")
+        try:
+            df_clean = df[[alvo, previsto]].dropna().copy()
+            y_true, y_pred = df_clean[alvo], df_clean[previsto]
+            residuos = y_true - y_pred
+            
+            r2 = r2_score(y_true, y_pred)
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                fig_lin = go.Figure()
+                fig_lin.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Dados', marker=dict(color='#1f77b4', opacity=0.7)))
+                min_v, max_v = min(y_true.min(), y_pred.min()), max(y_true.max(), y_pred.max())
+                fig_lin.add_shape(type="line", x0=min_v, y0=min_v, x1=max_v, y1=max_v, line=dict(color="red", dash="dash"))
+                fig_lin.update_layout(title=f"Linearidade (R² = {r2:.3f})", height=400)
+                st.plotly_chart(fig_lin, use_container_width=True)
+            with c2:
+                fig_ba = go.Figure()
+                fig_ba.add_trace(go.Scatter(x=(y_true+y_pred)/2, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
+                fig_ba.update_layout(title="Bland-Altman", height=400)
+                st.plotly_chart(fig_ba, use_container_width=True)
+            with c3:
+                fig_hist = px.histogram(x=residuos, nbins=20, title="Distribuição de Resíduos", color_discrete_sequence=['#2ca02c'])
+                fig_hist.update_layout(height=400)
+                st.plotly_chart(fig_hist, use_container_width=True)
+        except Exception as e:
+            st.error(f"Erro gráficos: {e}")
 
-    # --- ABA 2: OUTLIERS ---
-    with tabs[1]:
-        st.subheader("Análise Detalhada de Outliers")
-        try:
-            residuos = df[alvo] - df[previsto]
-            _, is_outlier, idx = detect_outliers_grubbs(residuos.dropna().values)
-            st.metric("Outliers Detetados", "Sim" if is_outlier else "Não")
-            if is_outlier: st.warning(f"Teste de Grubbs detetou outlier no índice: {idx}")
-        except Exception as e:
-            _render_error(e)
+    # --- ABA 2: ANÁLISE DE OUTLIERS ---
+    with tab2:
+            st.subheader("Análise Detalhada de Outliers")
+            try:
+                df_clean = df[[alvo, previsto]].dropna().copy()
+                residuos = df_clean[alvo] - df_clean[previsto]
+                z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
+                outliers_z = z_scores > 3
+                pct = (outliers_z.sum() / len(residuos)) * 100
+                
+                # Aqui chamamos a função que corrigimos no Passo 1
+                _, is_outlier, idx = detect_outliers_grubbs(residuos.values)
+                
+                c_left, c_right = st.columns([2, 1])
+                with c_left:
+                    fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, title="Identificação de Outliers ($|Z| > 3$)")
+                    st.plotly_chart(fig_out, use_container_width=True)
+                with c_right:
+                    st.metric("Percentagem de Outliers", f"{pct:.2f}%")
+                    if pct > 5: st.error("❌ Percentagem de outliers elevada.")
+                    else: st.success("✅ Percentagem controlada.")
+                    if is_outlier: st.warning(f"Teste de Grubbs detetou outlier extremo no índice {idx}.")
+                    st.download_button("⬇️ Baixar Outliers", df_clean[outliers_z].to_csv().encode('utf-8'), "outliers.csv", "text/csv")
+            except Exception as e:
+                st.error(f"Erro na análise: {e}")
 
-    # --- ABA 3: RESÍDUOS ---
-    with tabs[2]:
-        st.subheader("Validação de Resíduos")
-        # 
-        try:
-            # Cálculos robustos aqui (conforme sua lógica original)
-            st.write("Análise de normalidade e heterocedasticidade via testes formais (Shapiro/Anderson).")
-            # Adicione aqui o código de plotagem dos resíduos padronizados
-        except Exception as e:
-            _render_error(e)
 
-    # --- ABA 4: VIF ---
-    with tabs[3]:
-        st.subheader("Análise de Multicolinearidade (VIF)")
-        try:
-            vif_df = check_multicollinearity(df[preditores].dropna())
-            st.dataframe(vif_df.style.background_gradient(cmap="Reds"))
-        except Exception as e:
-            _render_error(e)
+    
+    with tab3:
+        st.subheader("Análise Avançada e Validação de Resíduos")
+        try:
+            df_clean = df[[alvo, previsto]].dropna().copy()
+            
+            # Cálculos de Incerteza e Resíduos
+            df_clean['Resíduos'] = df_clean[alvo] - df_clean[previsto]
+            
+            # Variável Aleatória de Incerteza do Modelo (Theta = Real / Previsto)
+            # Evita divisão por zero retornando NaN
+            df_clean['Theta_Incerteza'] = np.where(df_clean[previsto] != 0, df_clean[alvo] / df_clean[previsto], np.nan)
+            
+            N_amostras = len(df_clean)
+            mean_resid = df_clean['Resíduos'].mean()
+            std_resid = df_clean['Resíduos'].std(ddof=1)
+            
+            # Momentos de Theta para Confiabilidade
+            mean_theta = df_clean['Theta_Incerteza'].mean()
+            std_theta = df_clean['Theta_Incerteza'].std(ddof=1)
+            cov_theta = std_theta / mean_theta if mean_theta != 0 else 0
+            
+            df_clean['Resíduos_Padronizados'] = (df_clean['Resíduos'] - mean_resid) / std_resid
+            
+            col_grafico, col_texto = st.columns(2)
+            
+            with col_grafico:
+                # 1. Gráfico de Dispersão
+                fig_res = px.scatter(df_clean, x=previsto, y='Resíduos', labels={previsto: 'Valores Previstos ($\hat{y}$)', 'Resíduos': 'Resíduos'}, title="Dispersão de Resíduos vs. Previstos")
+                fig_res.add_hline(y=0, line_dash="dash", line_color="red")
+                fig_res.update_layout(height=320, margin=dict(l=20, r=20, t=40, b=20))
+                st.plotly_chart(fig_res, use_container_width=True)
+                
+                # 2. Histograma com Densidade
+                fig_norm = go.Figure()
+                fig_norm.add_trace(go.Histogram(x=df_clean['Resíduos_Padronizados'], histnorm='probability density', name='Densidade', marker_color='#9467bd', opacity=0.7, nbinsx=20))
+                x_range = np.linspace(df_clean['Resíduos_Padronizados'].min() - 1, df_clean['Resíduos_Padronizados'].max() + 1, 100)
+                y_norm = stats.norm.pdf(x_range, 0, 1)
+                fig_norm.add_trace(go.Scatter(x=x_range, y=y_norm, mode='lines', name='Normal Teórica', line=dict(color='red', width=2, dash='dash')))
+                fig_norm.update_layout(title="Densidade vs. Curva Normal", xaxis_title="Resíduos Padronizados ($Z$)", yaxis_title="Densidade", height=320, margin=dict(l=20, r=20, t=40, b=20))
+                st.plotly_chart(fig_norm, use_container_width=True)
+                
+                # 3. Q-Q Plot
+                (osm, osr), (slope, intercept, r) = stats.probplot(df_clean['Resíduos_Padronizados'], dist="norm")
+                fig_qq = go.Figure()
+                fig_qq.add_trace(go.Scatter(x=osm, y=osr, mode='markers', name='Quantis observados', marker=dict(color='#8c564b', opacity=0.7)))
+                fig_qq.add_trace(go.Scatter(x=osm, y=slope*osm + intercept, mode='lines', name='Linha de Referência', line=dict(color='red', dash='dash')))
+                fig_qq.update_layout(title=f"Q-Q Plot (R² de aderência = {r**2:.3f})", xaxis_title="Quantis Teóricos (Normal)", yaxis_title="Quantis Observados ($Z$)", height=320, margin=dict(l=20, r=20, t=40, b=20))
+                st.plotly_chart(fig_qq, use_container_width=True)
+                
+                # Download atualizado com a variável Theta
+                df_graph_data = df_clean[[previsto, 'Resíduos', 'Resíduos_Padronizados', 'Theta_Incerteza']].rename(columns={previsto: 'Valores_Previstos'})
+                csv_graph = df_graph_data.to_csv(index=False).encode('utf-8')
+                st.download_button("⬇️ Baixar Dados e Fator de Incerteza (Theta)", data=csv_graph, file_name="dados_residuos_incerteza.csv", mime="text/csv", key="dl_graph_res")
+                
+            with col_texto:
+                # P-valores dos testes
+                results_bp = check_homoscedasticity(df_clean[alvo], df_clean[previsto])
+                p_val_bp = results_bp.get('p-valor (LM)', results_bp.get('p-value', 0))
+                stat_sw, p_val_sw = stats.shapiro(df_clean['Resíduos'])
+                ad_stat, p_val_ad = sm.stats.diagnostic.normal_ad(df_clean['Resíduos'])
+                
+                st.markdown("#### 🔬 Métricas e Testes Formais")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("P-Valor (Breusch-Pagan)", f"{p_val_bp:.4f}")
+                c2.metric("P-Valor (Shapiro-Wilk)", f"{p_val_sw:.4f}")
+                c3.metric("P-Valor (Anderson-Darling)", f"{p_val_ad:.4f}")
+                
+                st.markdown("#### 📏 Estatísticas e Incerteza Epistémica do Modelo ($\\theta$)")
+                cm1, cm2, cm3, cm4 = st.columns(4)
+                cm1.metric("Média dos Resíduos", f"{mean_resid:.4e}")
+                cm2.metric("Desvio Padrão (Resíduos)", f"{std_resid:.4f}")
+                cm3.metric("Média Fator $\\theta$ (Real/Prev)", f"{mean_theta:.4f}")
+                cm4.metric("CoV do Fator $\\theta$ (%)", f"{cov_theta*100:.2f}%")
+                
+                st.markdown("#### 💡 Recomendação Metodológica")
+                if N_amostras < 50:
+                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Pequena). Recomenda-se confiar primariamente no teste de **Shapiro-Wilk**, que possui maior poder estatístico para $N < 50$. A variável aleatória de incerteza do modelo $\\theta$ apresentou uma dispersão (CoV) de {cov_theta*100:.2f}%.")
+                else:
+                    st.info(f"O tamanho da amostra é $N = {N_amostras}$ (Amostra Robusta). Recomenda-se focar no teste de **Anderson-Darling**, pois este penaliza severamente os desvios nas caudas da distribuição. Utilize a média de $\\theta$ ({mean_theta:.4f}) e o seu CoV ({cov_theta*100:.2f}%) para as simulações de Confiabilidade Estrutural.")
 
-    # --- ABA 5: SOBOL ---
-    with tabs[4]:
-        st.subheader("Análise de Sensibilidade Global (Sobol)")
-        # Lógica de simulação de Monte Carlo
-        if st.button("🚀 Executar Sobol"):
-            try:
-                # Lógica de S1 e ST
-                st.success("Análise concluída.")
-            except Exception as e:
-                _render_error(e)
+                st.markdown("#### 📝 Parecer Técnico de Avaliação")
+                if p_val_bp < 0.05:
+                    st.error("❌ **Heterocedasticidade Detetada:** A variância dos erros apresenta dispersão irregular.")
+                else:
+                    st.success("✅ **Homocedasticidade Confirmada:** Os resíduos distribuem-se de forma homogénea (variância constante).")
+                
+                if p_val_ad >= 0.05 and p_val_sw >= 0.05:
+                    st.success("✅ **Normalidade Confirmada:** Ambos os testes confirmam a aderência à distribuição normal ($p \ge 0.05$). No **Q-Q Plot**, os pontos alinham-se consistentemente.")
+                elif p_val_ad < 0.05 and p_val_sw < 0.05:
+                    st.error("❌ **Resíduos Não-Normais:** Forte desvio da normalidade detectado por ambos os testes ($p < 0.05$). Observe o descolamento no **Q-Q Plot**.")
+                else:
+                    st.warning(f"⚠️ **Normalidade Divergente:** Os testes apresentam resultados conflitantes. Siga a recomendação acima baseada no tamanho $N={N_amostras}$. Verifique o **Q-Q Plot**.")
+                    
+        except Exception as e:
+            st.error(f"Erro na análise de resíduos: {e}")
+            
+    with tab4:
+        st.subheader("Análise de Multicolinearidade (VIF) e Tolerância")
+        try:
+            df_X = df[preditores].dropna()
+            vif_df = check_multicollinearity(df_X)
+            vif_df['Tolerância'] = 1 / vif_df['VIF']
+            
+            col_grafico_vif, col_tabela_vif = st.columns(2)
+            with col_grafico_vif:
+                fig_vif = px.bar(
+                    vif_df, x='Feature', y='VIF', color='VIF', 
+                    color_continuous_scale='Reds', title='Inflação da Variância por Variável'
+                )
+                fig_vif.add_hline(y=10, line_dash="dash", line_color="darkred", annotation_text="Limite Crítico (VIF=10)")
+                st.plotly_chart(fig_vif, use_container_width=True)
+                
+                csv_vif = vif_df.to_csv(index=False).encode('utf-8')
+                st.download_button("⬇️ Baixar Dados do Relatório VIF", data=csv_vif, file_name="relatorio_vif.csv", mime="text/csv", key="dl_vif")
+                
+            with col_tabela_vif:
+                st.markdown("#### 📋 Matriz de Diagnóstico VIF")
+                st.dataframe(vif_df.style.background_gradient(subset=["VIF"], cmap="Reds").format({"VIF": "{:.2f}", "Tolerância": "{:.4f}"}), use_container_width=True)
+                
+                variaveis_criticas = vif_df[vif_df['VIF'] > 10]['Feature'].tolist()
+                st.markdown("#### 📝 Parecer Técnico (VIF)")
+                if variaveis_criticas:
+                    st.error(f"❌ **Multicolinearidade Crítica:** As variáveis {variaveis_criticas} apresentam VIF > 10. Recomenda-se remoção ou regularização.")
+                else:
+                    st.success("✅ **Ausência de Multicolinearidade:** Todas as variáveis apresentam VIF sob controlo.")
+        except Exception as e:
+            st.error(f"Erro ao calcular VIF: {e}")
+            
+    with tab5:
+        st.subheader("Análise de Sensibilidade Global (Método Sobol)")
+        st.markdown("""
+        Quantifica como a incerteza de cada variável de entrada impacta a resposta estrutural. 
+        * **S1 (Ordem Principal):** Efeito isolado da variável.
+        * **ST (Ordem Total):** Efeito da variável somado a todas as interações com outras variáveis.
+        """)
+        
+        try:
+            cols_sobol = preditores + [alvo]
+            df_sobol = df[cols_sobol].dropna()
+            
+            st.markdown("#### 1. Faixas de Incerteza (Limites da Simulação)")
+            bounds = []
+            col_min, col_max = st.columns(2)
+            
+            for var in preditores:
+                min_val = float(df_sobol[var].min())
+                max_val = float(df_sobol[var].max())
+                with col_min:
+                    lb = st.number_input(f"Mínimo para {var}", value=min_val, key=f"min_sob_{var}")
+                with col_max:
+                    ub = st.number_input(f"Máximo para {var}", value=max_val, key=f"max_sob_{var}")
+                bounds.append([lb, ub])
+                
+            if st.button("🚀 Executar Simulação de Monte Carlo (Sobol)", type="primary"):
+                with st.spinner("A treinar Superfície de Resposta e a amostrar Matrizes de Saltelli..."):
+                    
+                    problem = {'num_vars': len(preditores), 'names': preditores, 'bounds': bounds}
+                    X_model = sm.add_constant(df_sobol[preditores])
+                    surrogate_model = sm.OLS(df_sobol[alvo], X_model).fit()
+                    
+                    def surrogate_predict(p):
+                        p_in = np.insert(p, 0, 1.0)
+                        return surrogate_model.predict(p_in)[0]
+                    
+                    Si = run_sobol_sensitivity(surrogate_predict, problem, num_samples=1024)
+                    
+                    if Si is not None:
+                        df_si = pd.DataFrame({'Variável': preditores, 'S1 (Isolado)': Si['S1'], 'ST (Total)': Si['ST']})
+                        
+                        col_graf_sob, col_tbl_sob = st.columns(2)
+                        with col_graf_sob:
+                            df_si_melt = df_si.melt(id_vars='Variável', value_vars=['S1 (Isolado)', 'ST (Total)'], var_name='Índice', value_name='Valor')
+                            fig_sob = px.bar(
+                                df_si_melt, x='Variável', y='Valor', color='Índice', barmode='group',
+                                title='Decomposição da Variância (Índices de Sobol)',
+                                color_discrete_sequence=['#1f77b4', '#ff7f0e']
+                            )
+                            st.plotly_chart(fig_sob, use_container_width=True)
+                            csv_sob = df_si.to_csv(index=False).encode('utf-8')
+                            st.download_button("⬇️ Baixar Índices (CSV)", data=csv_sob, file_name="sobol_indices.csv", mime="text/csv", key="dl_sob")
+                            
+                        with col_tbl_sob:
+                            st.markdown("#### 📋 Matriz Numérica de Sensibilidade")
+                            st.dataframe(df_si.style.background_gradient(subset=['ST (Total)'], cmap="Blues").format({"S1 (Isolado)": "{:.4f}", "ST (Total)": "{:.4f}"}), use_container_width=True)
+                            var_dominante = df_si.loc[df_si['ST (Total)'].idxmax(), 'Variável']
+                            st.info(f"**Variável Dominante:** A incerteza da resposta estrutural é governada por `{var_dominante}`.")
+
+        except Exception as e:
+            st.error(f"Erro na configuração do Sobol: {e}")
