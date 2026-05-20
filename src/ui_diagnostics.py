@@ -193,8 +193,8 @@ def render_diagnostics():
             with col_grafico_vif:
                 fig_vif = px.bar(
                     vif_df, x='Feature', y='VIF', color='VIF', 
-                    color_continuous_scale='Reds', title='Inflação da Variância por Variável'
-                )
+                    color_continuous_scale='Reds', title='Inflação da Variância por Variável')
+                
                 fig_vif.add_hline(y=10, line_dash="dash", line_color="darkred", annotation_text="Limite Crítico (VIF=10)")
                 st.plotly_chart(fig_vif, use_container_width=True)
                 
