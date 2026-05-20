@@ -1,5 +1,3 @@
-Acho que esse é o mais crítico:
-
 import streamlit as st
 import pandas as pd
 import numpy as np
