@@ -112,14 +112,14 @@ else:
         "o diagnóstico estatístico do modelo."
     )
 
-
+st.markdown("---")
 st.markdown(
     """
-    <div style='text-align: center; color: gray; font-size: 0.85em;'>
+    <div style='text-align: center; color: gray; font-size: 0.85em; margin-top: 2rem;'>
         <b>StructStat: módulo de avaliação de modelos</b><br>
         Desenvolvido por: Pedro Jardim<br>
         <i>v1.0 - Maio/2026</i>
     </div>
-    """, 
-    unsafe_allow_html=True
-    )
+    """,
+    unsafe_allow_html=True,
+)
