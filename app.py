@@ -101,16 +101,16 @@ if df is not None:
         )
     elif not vars_ok:
         st.sidebar.caption("Selecione as variáveis acima para gerar o PDF.")
-    st.markdown(
-    """
-    <div style='text-align: center; color: gray; font-size: 0.85em;'>
-        <b>StructStat: módulo de avaliação de modelos</b><br>
-        Desenvolvido por: Pedro Jardim<br>
-        <i>v1.0 - Maio/2026</i>
-    </div>
-    """, 
-    unsafe_allow_html=True
-    )
+        st.markdown(
+        """
+        <div style='text-align: center; color: gray; font-size: 0.85em;'>
+            <b>StructStat: módulo de avaliação de modelos</b><br>
+            Desenvolvido por: Pedro Jardim<br>
+            <i>v1.0 - Maio/2026</i>
+        </div>
+        """, 
+        unsafe_allow_html=True
+        )
 # --- Área principal ---
 if df is not None:
     render_diagnostics()
