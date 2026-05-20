@@ -6,8 +6,7 @@ import plotly.graph_objects as go
 import statsmodels.api as sm
 from scipy import stats
 from sklearn.metrics import r2_score
-
-from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity
+from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity, detect_outliers_grubbs
 
 def render_diagnostics():
     st.title("📊 Diagnóstico Avançado de Modelos")
@@ -34,11 +33,12 @@ def render_diagnostics():
     st.markdown("---")
     
     # 2. Execução dos Separadores de Diagnóstico
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "Aderência Visual (Gráficos)", 
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "Aderência Visual", 
+        "Análise de Outliers", # <--- NOVA ABA
         "Homocedasticidade e Resíduos", 
         "Multicolinearidade (VIF)", 
-        "Sensibilidade Global (Sobol)"
+        "Sensibilidade (Sobol)"
     ])
     
     with tab1:
@@ -93,6 +93,53 @@ def render_diagnostics():
             st.error(f"Erro ao gerar gráficos de aderência: {e}")
 
     with tab2:
+            st.subheader("Análise Detalhada de Outliers")
+            try:
+                df_clean = df[[alvo, previsto]].dropna().copy()
+                residuos = df_clean[alvo] - df_clean[previsto]
+                
+                # Cálculo de estatísticas
+                z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
+                outliers_z = z_scores > 3
+                pct_outliers = (outliers_z.sum() / len(residuos)) * 100
+                
+                # Teste de Grubbs
+                g_stat, is_outlier, max_idx = detect_outliers_grubbs(residuos)
+                
+                col_res, col_tech = st.columns(2)
+                
+                with col_res:
+                    st.metric("Percentagem de Outliers ($|Z| > 3$)", f"{pct_outliers:.2f}%")
+                    st.write(f"Dados fora dos limites: **{outliers_z.sum()}** de {len(residuos)} amostras.")
+                    
+                    # Visualização dos outliers
+                    df_plot = df_clean.copy()
+                    df_plot['Tipo'] = np.where(outliers_z, 'Outlier', 'Normal')
+                    fig_out = px.scatter(df_plot, x=previsto, y=residuos, color='Tipo', title="Identificação de Outliers ($|Z| > 3$)")
+                    st.plotly_chart(fig_out, use_container_width=True)
+                    
+                    # Download
+                    df_export = df_plot[df_plot['Tipo'] == 'Outlier']
+                    csv_out = df_export.to_csv(index=False).encode('utf-8')
+                    st.download_button("⬇️ Baixar lista de Outliers", csv_out, "outliers_detected.csv", "text/csv")
+                    
+                with col_tech:
+                    st.markdown("#### 📝 Avaliação Técnica")
+                    if pct_outliers > 5:
+                        st.error("❌ **Percentagem de outliers elevada (> 5%).** O modelo pode estar subestimado por ruídos extremos.")
+                    else:
+                        st.success("✅ **Outliers sob controlo (< 5%).** A amostra é robusta.")
+                    
+                    st.markdown("#### 💡 Recomendação Metodológica")
+                    if len(residuos) < 50:
+                        st.info("Para amostras pequenas, o teste de **Grubbs** é o mais indicado para isolar erros grosseiros de medição. O seu valor crítico atual é baseado na distribuição t-Student.")
+                    else:
+                        st.info("Para amostras grandes, o método do **Z-Score** ou **IQR** (Tukey) é mais estável. Outliers em larga escala devem ser analisados quanto à sua origem (erro de leitura vs. resposta física real).")
+    
+            except Exception as e:
+                st.error(f"Erro na análise de outliers: {e}")
+    
+    with tab3:
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
@@ -188,7 +235,7 @@ def render_diagnostics():
         except Exception as e:
             st.error(f"Erro na análise de resíduos: {e}")
             
-    with tab3:
+    with tab4:
         st.subheader("Análise de Multicolinearidade (VIF) e Tolerância")
         try:
             df_X = df[preditores].dropna()
@@ -220,7 +267,7 @@ def render_diagnostics():
         except Exception as e:
             st.error(f"Erro ao calcular VIF: {e}")
             
-    with tab4:
+    with tab5:
         st.subheader("Análise de Sensibilidade Global (Método Sobol)")
         st.markdown("""
         Quantifica como a incerteza de cada variável de entrada impacta a resposta estrutural. 
