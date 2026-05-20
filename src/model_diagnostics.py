@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-from scipy import stats  # <--- ESSENCIAL
+from scipy import stats  # ESSENCIAL PARA O TESTE DE GRUBBS
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from SALib.sample import saltelli
 from SALib.analyze import sobol
@@ -31,11 +31,11 @@ def run_sobol_sensitivity(_model_func, problem, num_samples=1024):
         Y = np.array([_model_func(p) for p in param_values])
         Si = sobol.analyze(problem, Y, print_to_console=False)
         return Si
-    except Exception as e:
+    except Exception:
         return None
 
 def detect_outliers_grubbs(data):
-    # Aqui utilizamos o 'stats' que foi importado no topo deste ficheiro
+    # Agora o 'stats' será encontrado aqui
     n = len(data)
     if n <= 2: return 0, False, 0
     mean = np.mean(data)
