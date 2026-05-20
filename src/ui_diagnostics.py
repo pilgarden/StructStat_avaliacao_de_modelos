@@ -19,6 +19,7 @@ def render_diagnostics():
         st.warning("⚠️ Carregue um arquivo de dados na barra lateral (Hub).")
         return
     df = st.session_state['df_global']
+    from src.report_generator import generate_pdf_report
     
     with st.expander("⚙️ Configurações de Variáveis"):
         col1, col2 = st.columns(2)
@@ -60,6 +61,15 @@ def render_diagnostics():
                 fig_hist = px.histogram(x=residuos, nbins=20, title="Distribuição de Resíduos", color_discrete_sequence=['#2ca02c'])
                 fig_hist.update_layout(height=400)
                 st.plotly_chart(fig_hist, use_container_width=True)
+        if st.button("📄 Gerar Relatório PDF Completo"):
+            with st.spinner("Gerando PDF..."):
+                pdf_bytes = generate_pdf_report(df, alvo, previsto, preditores)
+                st.download_button(
+                    label="⬇️ Download PDF",
+                    data=pdf_bytes,
+                    file_name="diagnostico_tese.pdf",
+                    mime="application/pdf"
+        )
         except Exception as e:
             st.error(f"Erro gráficos: {e}")
 
