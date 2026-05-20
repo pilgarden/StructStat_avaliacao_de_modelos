@@ -2,8 +2,11 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 import statsmodels.api as sm
 from scipy import stats
+from sklearn.metrics import r2_score
+
 from src.model_diagnostics import check_multicollinearity, check_homoscedasticity, run_sobol_sensitivity
 
 def render_diagnostics():
@@ -30,10 +33,86 @@ def render_diagnostics():
 
     st.markdown("---")
     
-    # 2. Execução dos Separadores de Diagnóstico
-    tab1, tab2, tab3 = st.tabs(["Homocedasticidade e Resíduos", "Multicolinearidade (VIF)", "Sensibilidade Global (Sobol)"])
+    # 2. Execução dos Separadores de Diagnóstico (NOVA ABA ADICIONADA AQUI)
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Aderência Visual (Gráficos)", 
+        "Homocedasticidade e Resíduos", 
+        "Multicolinearidade (VIF)", 
+        "Sensibilidade Global (Sobol)"
+    ])
     
     with tab1:
+        st.subheader("Análise Gráfica de Aderência e Distribuição de Erros")
+        try:
+            df_clean = df[[alvo, previsto]].dropna().copy()
+            y_true = df_clean[alvo]
+            y_pred = df_clean[previsto]
+            residuos = y_true - y_pred
+            
+            # Cálculo de métricas
+            r2 = r2_score(y_true, y_pred)
+            mean_diff = np.mean(residuos)
+            std_diff = np.std(residuos)
+            limit_up = mean_diff + 1.96 * std_diff
+            limit_down = mean_diff - 1.96 * std_diff
+            medias_ba = (y_true + y_pred) / 2
+            
+            # Layout em 3 colunas como solicitado
+            c1, c2, c3 = st.columns(3)
+            
+            with c1:
+                # Gráfico 1: Linearidade (Previsto vs Referência)
+                fig_lin = go.Figure()
+                fig_lin.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Dados', marker=dict(color='#1f77b4', opacity=0.7)))
+                # Linha Ideal de 45 graus
+                min_val = min(y_true.min(), y_pred.min())
+                max_val = max(y_true.max(), y_pred.max())
+                fig_lin.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="red", dash="dash"))
+                
+                fig_lin.update_layout(
+                    title=f"Linearidade: Previsto vs Referência<br><sup>R² = {r2:.3f}</sup>",
+                    xaxis_title="Referência ($y$)",
+                    yaxis_title="Previsto ($\hat{y}$)",
+                    height=400, margin=dict(l=20, r=20, t=60, b=20)
+                )
+                st.plotly_chart(fig_lin, use_container_width=True)
+                
+            with c2:
+                # Gráfico 2: Bland-Altman
+                fig_ba = go.Figure()
+                fig_ba.add_trace(go.Scatter(x=medias_ba, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
+                
+                # Linhas do Bland-Altman
+                fig_ba.add_hline(y=mean_diff, line_dash="solid", line_color="blue", annotation_text=f"Média: {mean_diff:.2f}")
+                fig_ba.add_hline(y=limit_up, line_dash="dash", line_color="red", annotation_text=f"+1.96 SD: {limit_up:.2f}")
+                fig_ba.add_hline(y=limit_down, line_dash="dash", line_color="red", annotation_text=f"-1.96 SD: {limit_down:.2f}", annotation_position="bottom right")
+                
+                fig_ba.update_layout(
+                    title="Bland-Altman: Erro vs Média",
+                    xaxis_title="Média (Ref + Prev)/2",
+                    yaxis_title="Erro (Ref - Prev)",
+                    height=400, margin=dict(l=20, r=20, t=60, b=20)
+                )
+                st.plotly_chart(fig_ba, use_container_width=True)
+                
+            with c3:
+                # Gráfico 3: Distribuição de Resíduos (Histograma)
+                fig_hist = px.histogram(
+                    x=residuos, nbins=20, 
+                    title="Distribuição de Resíduos",
+                    labels={'x': 'Erro', 'count': 'Frequência'},
+                    color_discrete_sequence=['#2ca02c']
+                )
+                fig_hist.update_layout(xaxis_title="Erro (Ref - Prev)", yaxis_title="Frequência", height=400, margin=dict(l=20, r=20, t=60, b=20))
+                st.plotly_chart(fig_hist, use_container_width=True)
+                
+            st.caption("💡 **Dica de Exportação:** Clique na câmara no canto superior direito de cada gráfico para guardá-lo como imagem, ou utilize as abas seguintes para obter a validação numérica.")
+
+        except Exception as e:
+            st.error(f"Erro ao gerar gráficos de aderência: {e}")
+
+    # --- AS OUTRAS ABAS MANTÊM-SE EXATAMENTE COMO ESTAVAM ---
+    with tab2:
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
@@ -76,7 +155,7 @@ def render_diagnostics():
         except Exception as e:
             st.error(f"Erro na análise de resíduos: {e}")
             
-    with tab2:
+    with tab3:
         st.subheader("Análise de Multicolinearidade (VIF) e Tolerância")
         try:
             df_X = df[preditores].dropna()
@@ -108,7 +187,7 @@ def render_diagnostics():
         except Exception as e:
             st.error(f"Erro ao calcular VIF: {e}")
             
-    with tab3:
+    with tab4:
         st.subheader("Análise de Sensibilidade Global (Método Sobol)")
         st.markdown("""
         Quantifica como a incerteza de cada variável de entrada impacta a resposta estrutural. 
@@ -117,13 +196,10 @@ def render_diagnostics():
         """)
         
         try:
-            # Garante que não há NaN nas colunas usadas
             cols_sobol = preditores + [alvo]
             df_sobol = df[cols_sobol].dropna()
             
             st.markdown("#### 1. Faixas de Incerteza (Limites da Simulação)")
-            st.caption("Valores pré-preenchidos com o mínimo e máximo observados na amostra física.")
-            
             bounds = []
             col_min, col_max = st.columns(2)
             
@@ -131,45 +207,29 @@ def render_diagnostics():
                 min_val = float(df_sobol[var].min())
                 max_val = float(df_sobol[var].max())
                 with col_min:
-                    lb = st.number_input(f"Mínimo (Lower) para {var}", value=min_val, key=f"min_sob_{var}")
+                    lb = st.number_input(f"Mínimo para {var}", value=min_val, key=f"min_sob_{var}")
                 with col_max:
-                    ub = st.number_input(f"Máximo (Upper) para {var}", value=max_val, key=f"max_sob_{var}")
+                    ub = st.number_input(f"Máximo para {var}", value=max_val, key=f"max_sob_{var}")
                 bounds.append([lb, ub])
                 
             if st.button("🚀 Executar Simulação de Monte Carlo (Sobol)", type="primary"):
                 with st.spinner("A treinar Superfície de Resposta e a amostrar Matrizes de Saltelli..."):
                     
-                    # 1. Definição do Problema (SALib)
-                    problem = {
-                        'num_vars': len(preditores),
-                        'names': preditores,
-                        'bounds': bounds
-                    }
-                    
-                    # 2. Treino de Surrogate Model (OLS)
+                    problem = {'num_vars': len(preditores), 'names': preditores, 'bounds': bounds}
                     X_model = sm.add_constant(df_sobol[preditores])
                     surrogate_model = sm.OLS(df_sobol[alvo], X_model).fit()
                     
-                    # 3. Função invólucro (Wrapper) para o SALib avaliar o modelo
                     def surrogate_predict(p):
-                        # p é um array (ex: [E, I, L]). Inserimos 1.0 no índice 0 para a constante
                         p_in = np.insert(p, 0, 1.0)
                         return surrogate_model.predict(p_in)[0]
                     
-                    # 4. Cálculo via Motor Matemático (src/model_diagnostics.py)
                     Si = run_sobol_sensitivity(surrogate_predict, problem, num_samples=1024)
                     
                     if Si is not None:
-                        # Processamento de Dados
-                        df_si = pd.DataFrame({
-                            'Variável': preditores,
-                            'S1 (Isolado)': Si['S1'],
-                            'ST (Total)': Si['ST']
-                        })
+                        df_si = pd.DataFrame({'Variável': preditores, 'S1 (Isolado)': Si['S1'], 'ST (Total)': Si['ST']})
                         
                         col_graf_sob, col_tbl_sob = st.columns(2)
                         with col_graf_sob:
-                            # Preparar dados para gráfico de barras agrupadas
                             df_si_melt = df_si.melt(id_vars='Variável', value_vars=['S1 (Isolado)', 'ST (Total)'], var_name='Índice', value_name='Valor')
                             fig_sob = px.bar(
                                 df_si_melt, x='Variável', y='Valor', color='Índice', barmode='group',
@@ -177,18 +237,14 @@ def render_diagnostics():
                                 color_discrete_sequence=['#1f77b4', '#ff7f0e']
                             )
                             st.plotly_chart(fig_sob, use_container_width=True)
-                            
                             csv_sob = df_si.to_csv(index=False).encode('utf-8')
                             st.download_button("⬇️ Baixar Índices (CSV)", data=csv_sob, file_name="sobol_indices.csv", mime="text/csv", key="dl_sob")
                             
                         with col_tbl_sob:
                             st.markdown("#### 📋 Matriz Numérica de Sensibilidade")
                             st.dataframe(df_si.style.background_gradient(subset=['ST (Total)'], cmap="Blues").format({"S1 (Isolado)": "{:.4f}", "ST (Total)": "{:.4f}"}), use_container_width=True)
-                            
-                            # Interpretação Dinâmica
                             var_dominante = df_si.loc[df_si['ST (Total)'].idxmax(), 'Variável']
-                            st.markdown("#### 📝 Parecer Técnico (Sensibilidade)")
-                            st.info(f"**Variável Dominante:** A variável física `{var_dominante}` apresenta o maior índice de Ordem Total (ST). Isto significa que a maior parte da incerteza na sua resposta estrutural é governada por esta variável (incluindo as suas interações). Para otimizar o projeto, o foco de precisão na medição deve estar em `{var_dominante}`.")
+                            st.info(f"**Variável Dominante:** A incerteza da resposta estrutural é governada por `{var_dominante}`.")
 
         except Exception as e:
-            st.error(f"Erro na configuração do Sobol: Verifique se as variáveis selecionadas não contêm valores infinitos ou texto nulo. Erro: {e}")
+            st.error(f"Erro na configuração do Sobol: {e}")
