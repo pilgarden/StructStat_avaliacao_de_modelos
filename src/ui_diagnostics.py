@@ -32,6 +32,7 @@ def render_diagnostics():
     # --- ABA 1: ADERÊNCIA VISUAL ---
     with tab1:
         st.subheader("Análise Gráfica de Aderência")
+    
         try:
             df_clean = df[[alvo, previsto]].dropna().copy()
             y_true, y_pred = df_clean[alvo], df_clean[previsto]
@@ -60,29 +61,30 @@ def render_diagnostics():
 
     # --- ABA 2: ANÁLISE DE OUTLIERS ---
     with tab2:
-            st.subheader("Análise Detalhada de Outliers")
-            try:
-                df_clean = df[[alvo, previsto]].dropna().copy()
-                residuos = df_clean[alvo] - df_clean[previsto]
-                z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
-                outliers_z = z_scores > 3
-                pct = (outliers_z.sum() / len(residuos)) * 100
-                
-                # Aqui chamamos a função que corrigimos no Passo 1
-                _, is_outlier, idx = detect_outliers_grubbs(residuos.values)
-                
-                c_left, c_right = st.columns([2, 1])
-                with c_left:
-                    fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, title="Identificação de Outliers ($|Z| > 3$)")
-                    st.plotly_chart(fig_out, use_container_width=True)
-                with c_right:
-                    st.metric("Percentagem de Outliers", f"{pct:.2f}%")
-                    if pct > 5: st.error("❌ Percentagem de outliers elevada.")
-                    else: st.success("✅ Percentagem controlada.")
-                    if is_outlier: st.warning(f"Teste de Grubbs detetou outlier extremo no índice {idx}.")
-                    st.download_button("⬇️ Baixar Outliers", df_clean[outliers_z].to_csv().encode('utf-8'), "outliers.csv", "text/csv")
-            except Exception as e:
-                st.error(f"Erro na análise: {e}")
+      st.subheader("Análise Detalhada de Outliers")
+  
+      try:
+          df_clean = df[[alvo, previsto]].dropna().copy()
+          residuos = df_clean[alvo] - df_clean[previsto]
+          z_scores = np.abs((residuos - residuos.mean()) / residuos.std())
+          outliers_z = z_scores > 3
+          pct = (outliers_z.sum() / len(residuos)) * 100
+          
+          # Aqui chamamos a função que corrigimos no Passo 1
+          _, is_outlier, idx = detect_outliers_grubbs(residuos.values)
+          
+          c_left, c_right = st.columns([2, 1])
+          with c_left:
+              fig_out = px.scatter(x=df_clean[previsto], y=residuos, color=outliers_z, title="Identificação de Outliers ($|Z| > 3$)")
+              st.plotly_chart(fig_out, use_container_width=True)
+          with c_right:
+              st.metric("Percentagem de Outliers", f"{pct:.2f}%")
+              if pct > 5: st.error("❌ Percentagem de outliers elevada.")
+              else: st.success("✅ Percentagem controlada.")
+              if is_outlier: st.warning(f"Teste de Grubbs detetou outlier extremo no índice {idx}.")
+              st.download_button("⬇️ Baixar Outliers", df_clean[outliers_z].to_csv().encode('utf-8'), "outliers.csv", "text/csv")
+      except Exception as e:
+          st.error(f"Erro na análise: {e}")
 
 
     
@@ -261,8 +263,7 @@ def render_diagnostics():
                             fig_sob = px.bar(
                                 df_si_melt, x='Variável', y='Valor', color='Índice', barmode='group',
                                 title='Decomposição da Variância (Índices de Sobol)',
-                                color_discrete_sequence=['#1f77b4', '#ff7f0e']
-                            )
+                                color_discrete_sequence=['#1f77b4', '#ff7f0e'])
                             st.plotly_chart(fig_sob, use_container_width=True)
                             csv_sob = df_si.to_csv(index=False).encode('utf-8')
                             st.download_button("⬇️ Baixar Índices (CSV)", data=csv_sob, file_name="sobol_indices.csv", mime="text/csv", key="dl_sob")
