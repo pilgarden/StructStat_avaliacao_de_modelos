@@ -33,7 +33,7 @@ def render_diagnostics():
 
     st.markdown("---")
     
-    # 2. Execução dos Separadores de Diagnóstico (NOVA ABA ADICIONADA AQUI)
+    # 2. Execução dos Separadores de Diagnóstico
     tab1, tab2, tab3, tab4 = st.tabs([
         "Aderência Visual (Gráficos)", 
         "Homocedasticidade e Resíduos", 
@@ -49,7 +49,7 @@ def render_diagnostics():
             y_pred = df_clean[previsto]
             residuos = y_true - y_pred
             
-            # Cálculo de métricas
+            # Cálculo de métricas e limites teóricos
             r2 = r2_score(y_true, y_pred)
             mean_diff = np.mean(residuos)
             std_diff = np.std(residuos)
@@ -57,14 +57,13 @@ def render_diagnostics():
             limit_down = mean_diff - 1.96 * std_diff
             medias_ba = (y_true + y_pred) / 2
             
-            # Layout em 3 colunas como solicitado
+            # Layout lado a lado em 3 colunas
             c1, c2, c3 = st.columns(3)
             
             with c1:
                 # Gráfico 1: Linearidade (Previsto vs Referência)
                 fig_lin = go.Figure()
                 fig_lin.add_trace(go.Scatter(x=y_true, y=y_pred, mode='markers', name='Dados', marker=dict(color='#1f77b4', opacity=0.7)))
-                # Linha Ideal de 45 graus
                 min_val = min(y_true.min(), y_pred.min())
                 max_val = max(y_true.max(), y_pred.max())
                 fig_lin.add_shape(type="line", x0=min_val, y0=min_val, x1=max_val, y1=max_val, line=dict(color="red", dash="dash"))
@@ -77,12 +76,14 @@ def render_diagnostics():
                 )
                 st.plotly_chart(fig_lin, use_container_width=True)
                 
+                # REQUISITO EXIGIDO: Botão de Download para Dados de Linearidade
+                csv_lin = df_clean[[alvo, previsto]].rename(columns={alvo: 'Referenca_Y', previsto: 'Previsto_Y_Hat'}).to_csv(index=False).encode('utf-8')
+                st.download_button("⬇️ Baixar Dados de Linearidade", csv_lin, "dados_linearidade.csv", "text/csv", key="dl_lin_tab1")
+                
             with c2:
                 # Gráfico 2: Bland-Altman
                 fig_ba = go.Figure()
                 fig_ba.add_trace(go.Scatter(x=medias_ba, y=residuos, mode='markers', name='Diferenças', marker=dict(color='#ff7f0e', opacity=0.7)))
-                
-                # Linhas do Bland-Altman
                 fig_ba.add_hline(y=mean_diff, line_dash="solid", line_color="blue", annotation_text=f"Média: {mean_diff:.2f}")
                 fig_ba.add_hline(y=limit_up, line_dash="dash", line_color="red", annotation_text=f"+1.96 SD: {limit_up:.2f}")
                 fig_ba.add_hline(y=limit_down, line_dash="dash", line_color="red", annotation_text=f"-1.96 SD: {limit_down:.2f}", annotation_position="bottom right")
@@ -95,6 +96,11 @@ def render_diagnostics():
                 )
                 st.plotly_chart(fig_ba, use_container_width=True)
                 
+                # REQUISITO EXIGIDO: Botão de Download para Dados do Bland-Altman
+                df_ba_export = pd.DataFrame({'Eixo_X_Medias': medias_ba, 'Eixo_Y_Diferencas': residuos})
+                csv_ba = df_ba_export.to_csv(index=False).encode('utf-8')
+                st.download_button("⬇️ Baixar Dados Bland-Altman", csv_ba, "dados_bland_altman.csv", "text/csv", key="dl_ba_tab1")
+                
             with c3:
                 # Gráfico 3: Distribuição de Resíduos (Histograma)
                 fig_hist = px.histogram(
@@ -106,12 +112,17 @@ def render_diagnostics():
                 fig_hist.update_layout(xaxis_title="Erro (Ref - Prev)", yaxis_title="Frequência", height=400, margin=dict(l=20, r=20, t=60, b=20))
                 st.plotly_chart(fig_hist, use_container_width=True)
                 
-            st.caption("💡 **Dica de Exportação:** Clique na câmara no canto superior direito de cada gráfico para guardá-lo como imagem, ou utilize as abas seguintes para obter a validação numérica.")
+                # REQUISITO EXIGIDO: Botão de Download para os Resíduos do Histograma
+                df_hist_export = pd.DataFrame({'Residuos_Erros': residuos})
+                csv_hist = df_hist_export.to_csv(index=False).encode('utf-8')
+                st.download_button("⬇️ Baixar Dados Histograma", csv_hist, "dados_histograma.csv", "text/csv", key="dl_hist_tab1")
+                
+            st.markdown("---")
+            st.info("📊 **Nota Teórica de Aderência:** O gráfico de linearidade indica se há desvios sistemáticos de proporcionalidade (erros de escala). O Bland-Altman avalia a magnitude do viés constante do modelo físico e se o erro cresce com o tamanho da estrutura. O Histograma ajuda a validar visualmente a premissa de erros gaussianos.")
 
         except Exception as e:
             st.error(f"Erro ao gerar gráficos de aderência: {e}")
 
-    # --- AS OUTRAS ABAS MANTÊM-SE EXATAMENTE COMO ESTAVAM ---
     with tab2:
         st.subheader("Análise Avançada e Validação de Resíduos")
         try:
